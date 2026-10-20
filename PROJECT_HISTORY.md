@@ -110,6 +110,13 @@ left hand → power drops at C4; right hand → power drops at C3.
   * FBCSP + shrinkage LDA, window + sessions chosen by CV on training data only:
     **κ = 0.601 (~80 % accuracy)**, on par with the winner
   * Note: the winner used **Naive Bayes**, not an SVM. An SVM variant is a natural next test.
+* `erd_svm/`: **SVM on ERD% values** (C3/Cz/C4 x mu/beta = 6 features), with power averaged
+  over N trials of the same hand before computing ERD%:
+  * same person (train sessions 1-3, test 4-5): single trial 66 %, 10-trial average **81 %**
+  * new person (leave-one-subject-out): single trial 62 %, 10-trial average **74 %**, with a
+    confusion matrix in `confusion_loso.png`
+  * Caveat: one decision per 10 same-hand trials, so this is a block-level decision, not
+    real-time single-trial control.
 
 ---
 
