@@ -1,0 +1,47 @@
+=== descriptive check, no classifier involved ===
+  2b      AUC of log(C3)-log(C4) -> right : 0.2174
+
+  re-cutting Gelo epochs:
+    Left1_5.csv        4/5 kept
+    Left6_10.csv       4/5 kept
+    left11_15.csv      5/5 kept
+    left16_20.csv      4/5 kept
+    left21_25.csv      5/5 kept
+    Right1_5.csv       5/5 kept
+    right11_15.csv     5/5 kept
+    right16_20.csv     5/5 kept
+    right21_25.csv     5/5 kept
+    right26_30.csv     5/5 kept
+    right31_35.csv     5/5 kept
+    right36_40.csv     5/5 kept
+    right41_45.csv     5/5 kept
+    right46_50.csv     5/5 kept
+    right6_10.csv      5/5 kept
+
+  Gelo    AUC of log(ch2)-log(ch3) -> right : 0.5127
+  2b says C3<C4 for right-hand MI; our data says ch2>ch3
+  -> directions DISAGREE  (note: our AUC is epoch-level and so is optimistic)
+
+=== classifier test, both channel orders ===
+  swap=0  csp_lda      EA=0  file 0.4500 (6/15)  perm p=0.8324
+  swap=0  csp_lda      EA=1  file 0.3000 (5/15)  perm p=0.9827
+  swap=0  ts_svm       EA=0  file 0.4000 (6/15)  perm p=0.8967
+  swap=0  ts_svm       EA=1  file 0.2500 (4/15)  perm p=0.9931
+  swap=0  fgmdm        EA=0  file 0.3500 (5/15)  perm p=0.9511
+  swap=0  fgmdm        EA=1  file 0.2500 (4/15)  perm p=0.9925
+  swap=0  logvar_svm   EA=0  file 0.4000 (6/15)  perm p=0.8988
+  swap=0  logvar_svm   EA=1  file 0.3500 (6/15)  perm p=0.9567
+  swap=1  csp_lda      EA=0  file 0.5000 (5/15)  perm p=1.0000
+  swap=1  csp_lda      EA=1  file 0.3000 (6/15)  perm p=1.0000
+  swap=1  ts_svm       EA=0  file 0.5000 (5/15)  perm p=1.0000
+  swap=1  ts_svm       EA=1  file 0.3000 (6/15)  perm p=1.0000
+  swap=1  fgmdm        EA=0  file 0.5000 (5/15)  perm p=1.0000
+  swap=1  fgmdm        EA=1  file 0.3000 (6/15)  perm p=1.0000
+  swap=1  logvar_svm   EA=0  file 0.5000 (5/15)  perm p=1.0000
+  swap=1  logvar_svm   EA=1  file 0.3500 (7/15)  perm p=1.0000
+
+best anywhere: swap=1 csp_lda EA=0  file_bal 0.5  p=1.0
+Bonferroni threshold for 2 hypotheses: p < 0.025
+VERDICT: not significant - neither channel order decodes our data
+
+Wrote results\gelo_polarity.csv

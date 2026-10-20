@@ -1,0 +1,624 @@
+===========================================================================================
+     LEFT-HAND vs RIGHT-HAND MOTOR IMAGERY WITH AN SVM - FULL EXPERIMENT REPORT
+     Folder: D:\trainsvm            Written: 19 September 2026
+===========================================================================================
+
+This file explains, in plain English, everything that was done in this folder:
+what we tried, why, how, what came out, and what it means. You should be able to read it
+without any other document. Short definitions of technical words are at the end
+(section 9, GLOSSARY).
+
+
+-------------------------------------------------------------------------------------------
+0. THE ONE-PARAGRAPH SUMMARY
+-------------------------------------------------------------------------------------------
+
+The goal was to train an SVM (a type of machine-learning classifier) that reads brain
+signals (EEG) and says whether a person is IMAGINING moving the LEFT hand or the RIGHT
+hand. We worked on two datasets:
+
+  (1) A published dataset of 50 stroke patients (Liu et al., 2024). The paper claims up to
+      72 % accuracy. When we tested everything carefully and honestly, the best we could
+      get was about 55 %. The main reason is that the authors' own code chooses its best
+      result by looking at the test data, which inflates the score. Our honest numbers are
+      the believable ones.
+
+  (2) Our own recordings from the Gelo BCI headband (4 electrodes). When tested the easy
+      (wrong) way, the SVM looks excellent (78-98 %). When tested the correct way (on a
+      recording the model has never seen), it scores 57-65 %, and a statistical test says
+      even 65 % is not clearly better than guessing (p = 0.089). The reason is how the
+      data was recorded: every file contains only left OR only right, so the model learns
+      to recognise the recording session instead of the hand. The fix is to record left and
+      right trials mixed in random order inside the same session.
+
+"Chance" in this whole report is 50 %: with two classes, a coin flip gets 50 % right.
+
+
+-------------------------------------------------------------------------------------------
+1. BACKGROUND - WHAT WE ARE TRYING TO DO
+-------------------------------------------------------------------------------------------
+
+1.1 Motor imagery
+  When you imagine moving your LEFT hand, the rhythm of the brain area that controls it
+  changes. That area is on the RIGHT side of the head (the brain is crossed over). An
+  electrode called C4 sits above it. For the RIGHT hand, the area is on the LEFT side of
+  the head, under electrode C3.
+
+  The change we look for: the brain's "idling" rhythms get weaker over the active side.
+    - mu rhythm   : 8-13 Hz
+    - beta rhythm : 13-30 Hz
+  This weakening is called ERD (event-related desynchronisation).
+  So, in theory:
+    - imagine LEFT hand  -> mu/beta power DROPS at C4 (right side of head)
+    - imagine RIGHT hand -> mu/beta power DROPS at C3 (left side of head)
+  A classifier can learn this left/right difference. In practice the effect is small, it
+  differs a lot between people, and stroke patients may have it weakened or missing.
+
+1.2 SVM (Support Vector Machine)
+  An SVM takes a list of numbers per example (called "features", e.g. the power at C3 and
+  at C4) and learns a boundary that separates the two classes. The main settings are:
+    - kernel : "linear" (a straight boundary) or "rbf" (a curved boundary)
+    - C      : how strictly it tries to fit the training data (big C = fits tightly and
+               risks memorising noise; small C = smoother boundary)
+    - gamma  : only for rbf, how curvy the boundary may be
+  The SVM never sees raw EEG. It sees FEATURES that we compute from the EEG.
+
+1.3 The single most important idea in this report: HONEST TESTING
+  To know how good a model is, you must test it on data it did NOT learn from. And you
+  must not make ANY decision (which settings, which frequency band, which model) by
+  looking at the test results. If you do, you are "peeking", and the score you report is
+  too high.
+
+  We use cross-validation (CV): split the data into parts (folds), train on some, test on
+  the rest, repeat so every part is tested once, then average.
+
+  Two more dangers that matter for our data:
+    - LEAKAGE: pieces of the same recording in both the training set and the test set.
+      The model may simply recognise the piece it has already seen.
+    - CONFOUND: something other than left/right that also differs between the classes
+      (for example, the day or the session they were recorded in). The model can learn
+      that instead of the hand.
+
+  Whenever the report says a number "cannot be trusted", it is because of one of these.
+
+
+===========================================================================================
+PART A - THE PUBLISHED STROKE-PATIENT DATASET
+===========================================================================================
+
+-------------------------------------------------------------------------------------------
+2. THE PAPER AND THE DATA
+-------------------------------------------------------------------------------------------
+
+2.1 The paper
+  Liu et al., "An EEG motor imagery dataset for brain computer interface in acute stroke
+  patients", Scientific Data 11:131 (2024). The data is in D:\trainsvm\eeg_stroke.
+
+2.2 What the data contains (what we found by reading the files)
+  - 50 acute stroke patients, one session each.
+  - 40 trials per patient: 20 left-hand, 20 right-hand, in ALTERNATING order.
+  - Each trial is 8 seconds:
+      2 s instruction  ->  4 s motor imagery (patient watches a video and imagines the
+      movement)  ->  2 s break
+  - 500 samples per second (500 Hz), so one trial = 4000 samples.
+  - 33 channels:
+      - 30 EEG electrodes; channel 18 (CPz) is the reference and is a flat constant, so
+        29 EEG channels are really usable
+      - 2 eye channels (EOG)
+      - 1 marker channel: 1 = instruction, 2 = imagery starts, 3 = break
+  - Two copies of the data:
+      - raw .mat files (unfiltered, large DC offsets of about 10,000 microvolts)
+      - .edf files (already filtered 0.5-40 Hz, stored as one continuous 320 s recording)
+  - The authors' MATLAB code is included (FBCSP_SVM.m, CSP_LDA.m, TSLDA_DGFMDM.m,
+    TWFB_DGFMDM.m and helpers).
+
+2.3 How the authors train their SVM (read from FBCSP_SVM.m, not just the paper)
+  Raw data IS used (the .mat files), with this processing:
+  1. Keep 29 EEG channels (drop reference, eye and marker channels).
+  2. Find the moment imagery starts (marker = 2). Cut 0 to 4 s after it.
+  3. Filter: remove 50 Hz mains noise, then keep 4-30 Hz (Butterworth order 2, one-way,
+     "causal").
+  4. Features = FBCSP (Filter-Bank CSP):
+       - split into 5 bands: 10-13, 13-16, 16-19, 19-22, 22-25 Hz
+       - in each band, CSP finds 2 pairs of "spatial filters" (weighted mixes of channels)
+         that best separate left from right
+       - feature = log of the signal variance through each filter
+       - 5 bands x 4 filters = 20 numbers per trial
+  5. Classifier: MATLAB fitcecoc with default settings = linear SVM, C = 1, no scaling.
+  6. Testing: 10 times, randomly pick 24 trials to train and 16 to test (60/40).
+     Not balanced by class, no fixed random seed. Report the average.
+  Note: the PAPER says 8-30 Hz filtering and 10-fold cross-validation, but the CODE does
+  4-30 Hz and random 60/40 splits. The code is what actually ran.
+
+  Paper's reported accuracies (average of 50 patients):
+    CSP + LDA ...................... 55.57 %
+    FBCSP + SVM .................... 57.57 %
+    TSLDA + DGFMDRM ................ 61.20 %
+    TWFB + DGFMDRM ................. 72.21 %   (their best)
+
+-------------------------------------------------------------------------------------------
+3. WHAT WE DID WITH THE STROKE DATA, STEP BY STEP
+-------------------------------------------------------------------------------------------
+
+STEP A1 - Faithful copy of the authors' SVM in Python
+  Script : stroke_paper\train_fbcsp_svm.py
+  What   : exactly the pipeline in 2.3, translated from MATLAB to Python.
+  Problem: in 11 patients, 18 trials have the imagery marker at the very first sample,
+           so the 4 s window runs past the end of the trial. Fixed the same way MATLAB
+           does it: join all 40 trials into one continuous stream, then cut windows.
+  Result : 47.86 % average - basically chance, and well below the paper's 57.57 %.
+
+STEP A2 - Try to improve the SVM
+  Script : stroke_paper\train_improved_svm.py
+  Changes (all standard good practice):
+    - use the "core" imagery period 0.5-3.5 s (skip the reaction delay at the start)
+    - scale the features (StandardScaler) before the SVM; SVMs need this
+    - choose C (0.001, 0.01, 0.1, 1, 10) by an INNER cross-validation that uses only
+      training data ("nested CV"), so the choice never peeks at the test set
+    - FBCSP with 6 bands 8-30 Hz, keep the best 8 features (mutual information)
+    - new feature types: Riemannian "tangent space" (see glossary), on one band and on
+      three bands (8-13, 13-20, 20-30 Hz)
+    - testing: stratified 10-fold CV (each fold has equal left/right)
+  Result : 51.9 % (FBCSP), 53.3 % (tangent space), 52.75 % (3-band tangent space).
+           A small improvement, still far from the paper.
+           Saved in stroke_paper\results\improved_results.txt.
+
+STEP A3 - Export every patient to CSV
+  Script : stroke_paper\export_csv.py
+  Output : D:\trainsvm\eeg_stroke\csv\  (4.9 GB, readme inside)
+    participants.csv         clinical table
+    channels.csv             channel number -> name
+    sub-XX_raw.csv           raw .mat data, one row per sample (160,000 rows)
+    sub-XX_preprocessed.csv  .edf data, same row layout
+    sub-XX_events.csv        one row per trial: label, marker positions, quality flags
+  Columns start with trial, label (1 = left, 2 = right), hand, sample, time_s
+  (seconds from imagery onset; imagery = 0 to 4 s), then the 33 channels.
+  Bug found and fixed: some raw marker values are not whole numbers (e.g. 2.8147, after
+  the break, 10 patients). Rounding them would have created fake "imagery starts". They
+  are kept as-is and flagged in a column called odd_marker_samples.
+
+STEP A4 - Where the paper and the data files disagree
+  (checked item by item; none of these alone explains the accuracy gap)
+  - Paralysed side: files say 28 left / 22 right; paper says 27 / 23.
+  - 2 patients are left-handed (subjects 06 and 15); not highlighted in the paper.
+  - Average mRS disability score: files 2.68, paper 2.66.
+  - Paper's usage notes say 20 trials; the files have 40.
+  - Paper's channel table calls channel 21 "FT7"; it is really TP7.
+  - Paper's Table 3 lists a "25-25 Hz" band (a typo).
+  - Channel 32 is "VEOR" in the paper but "HEOR" in the EDF file header.
+  - Paper says the EDF is split into trials; it is one continuous recording.
+  - Filtering: paper 8-30 Hz two-way; code 4-30 Hz one-way.
+  - Testing: paper says 10-fold CV; code does 10 random 60/40 splits.
+  - A bug in the authors' CSP code: training features use log(variance) but test features
+    use log(1 + variance), so train and test features are on different scales.
+  - The authors' plotting script calls a function that is missing from the download.
+  - We downloaded the OLDER version (v1) of the code from figshare to compare. It had extra
+    files (CalIndex.m, PlotAccBar.m, FeatureData.mat), so the published code is not the
+    exact code behind the paper. The archive was password-encrypted and could not be
+    opened, so it was deleted (1.8 GB).
+
+STEP A5 - WHY the paper's numbers cannot be reproduced (the key finding)
+  Script : stroke_paper\mismatch_analysis.py
+  Method : re-run each of the authors' test procedures exactly as their code does it,
+           twice:
+             (a) with the TRUE left/right labels
+             (b) with the labels RANDOMLY SHUFFLED
+           With shuffled labels there is nothing real to learn, so any honest method MUST
+           score about 50 %. If a method scores well above 50 % on shuffled labels, its
+           score comes from the procedure, not from the brain.
+
+    Procedure (authors' code)       True labels   Shuffled labels   Paper says
+    ------------------------------  -----------   ---------------   ----------
+    FBCSP + SVM                        48.27 %        47.05 %        57.57 %
+    TSLDA alone                        53.80 %        47.66 %           -
+    FgMDM alone                        53.90 %        47.77 %           -
+    TSLDA + FgMDM "fusion"             54.02 %        47.95 %        61.20 %
+    TWFB + FgMDM                       65.95 %        63.79 %  <--   72.21 %
+    FgMDM, one fixed band 8-30 Hz      51.76 %        46.79 %           -
+
+  What this shows:
+  - TWFB + FgMDM (their best, 72 %) still scores 63.8 % when the labels are RANDOM. The
+    reason, from TWFB_DGFMDM.m: it tries 8 frequency bands, each on a new random split,
+    and keeps the band with the HIGHEST TEST accuracy. That is choosing on the test set.
+    The more options you try, the higher the best one scores by luck alone.
+  - TSLDA + DGFMDRM "fusion" does the same on a smaller scale: in every split it keeps
+    whichever of the two classifiers scored higher ON THE TEST SET.
+  - Shuffled-label scores come out BELOW 50 % (about 47 %) because the random 24/16
+    splits are not balanced by class. That is a known side effect of small unbalanced
+    splits.
+  - Parts of the paper's method (Table 3: time windows, backtracking search, LTSA
+    dimension reduction) are not in the published code at all.
+  - The EEG signal itself is weak: only 19 of 50 patients show the textbook left/right
+    ERD pattern, which is not more than expected by chance (p = 0.133).
+
+STEP A6 - All models, one honest procedure (the final stroke result)
+  Script : stroke_paper\run_all_models.py  (about 22 minutes, 16 CPU cores)
+  Input  : the CSV files from step A3 (the raw signals)
+  Honest rules applied to every model:
+    - stratified 10-fold CV per patient; EXACTLY the same folds for every model, so they
+      can be compared fairly; every trial is tested exactly once
+    - nothing is ever chosen using test data:
+        * "fusion" = average the two classifiers' probabilities (not "pick the winner")
+        * TWFB picks its band AND time window by an inner 5-fold CV on training data only
+        * SVM C and the selected features are also chosen inside the training data
+    - two-way (zero-phase) filtering, per-trial offset removal, "shrinkage" covariance
+      estimates (more stable with few trials)
+
+  Results (average over 50 patients; "patients above chance" = at least 65 %, i.e. 26 of
+  40 trials correct, which luck alone reaches with probability under 5 %; with 50
+  patients, about 2 would pass by pure luck):
+
+    Model                                  Accuracy   Kappa   Patients >= 65 %   Paper
+    -------------------------------------  --------   -----   ----------------   -------
+    CSP + LDA                               50.45 %    0.01          6           55.57 %
+    FBCSP + SVM (authors' settings)         52.70 %    0.05         10           57.57 %
+    FBCSP + SVM (tuned)                     51.60 %    0.03          8              -
+    Tangent space + SVM                     53.30 %    0.07          9              -
+    Filter-bank tangent space + SVM         52.75 %    0.05         12              -
+    TSLDA                                   53.50 %    0.07          9              -
+    FgMDM                                   53.50 %    0.07          9              -
+    TSLDA + FgMDM fusion                    53.50 %    0.07          9           61.20 %
+    TWFB + FgMDM (band/window chosen
+      on training data only)                55.40 %    0.11         12           72.21 %
+
+  How to read it:
+  - The best honest model is TWFB + FgMDM at 55.4 %. The authors' IDEA (pick a good band
+    and time window per patient) does help a little, when done honestly.
+  - The best SVM is filter-bank tangent space + SVM (12 patients above chance).
+  - TSLDA, FgMDM and their fusion give identical answers. That is expected, not a bug:
+    in the library used, FgMDM for two classes ends up using the same shrinkage-LDA on
+    the same tangent-space features.
+  - Left and right errors are balanced (e.g. TWFB: 550/1000 left and 558/1000 right
+    correct), so no model simply favours one hand.
+  - A MINORITY of patients really can be decoded, and it is the same ones every time:
+    patients 20 and 40 beat chance with all 9 models; 7, 11 and 23 with 7 of 9. For most
+    patients no method separates left from right.
+  - Results: stroke_paper\results\  (summary.csv, per_subject_accuracy.csv,
+    confusion_matrices.csv, results_run.log)
+
+  (Small note: an early file, improved_results.txt, used 62.5 % as the chance line. The
+   correct line for 40 trials at p < 0.05 is 65 % (26/40), which is used everywhere else.)
+
+
+===========================================================================================
+PART B - OUR OWN GELO BCI HEADBAND RECORDINGS
+===========================================================================================
+
+-------------------------------------------------------------------------------------------
+4. THE DATA
+-------------------------------------------------------------------------------------------
+
+4.1 Where it is
+  D:\trainsvm\left   5 CSV files: Left1_5, Left6_10, left11_15, left16_20, left21_25
+  D:\trainsvm\right  10 CSV files: Right1_5, right6_10, ... right46_50
+  Each file = one recording session holding 5 iterations of the SAME hand.
+  Recorded on 8, 9 and 12 September.
+
+4.2 What each file contains (checked by reading them)
+  Columns: timestamp, ch1 ... ch8, mark
+  - timestamp goes up by 4000 per row, in microseconds -> 1 row every 4 ms -> 250 Hz.
+    (Important: your MATLAB script uses Fs = 256, which is wrong; see section 6.)
+  - ch1-ch4 are the 4 real electrodes. As you told us: ch2 = C3, ch3 = C4.
+    (Your MATLAB script does not state this mapping itself; we took it from you.)
+  - ch5-ch8 are empty: they hold the constant 1.18e-38 (the smallest float number). As
+    you instructed, they are ignored.
+  - Values are in volts; we convert to microvolts.
+  - mark:
+      1, 2, 3, 4, 5 = the 5 imagery iterations           -> USED
+      0             = between iterations                  -> ignored
+      6, 7          = about 30 s each, before the task    -> ignored for training
+                      (used only as a control test, see 5.5)
+
+4.3 Problems found in the recordings (all flagged in the Excel "iterations" sheet)
+  - Left1_5.csv has NO mark 3, so it has only 4 iterations (you said this is probably a
+    skipped iteration). Total left iterations = 24, not 25.
+  - Right1_5.csv mark 4 is interrupted by a 0.5 s gap. We treat it as ONE iteration.
+  - right46_50.csv mark 4 lasts 148 s (others are 5-38 s). We use only its first 40 s
+    (you agreed).
+  - Every file starts with a large start-up "surge" in the signal (up to about 100,000
+    times normal power). It is outside the marked iterations, but it is the reason we
+    filter each iteration on its own instead of filtering the whole file.
+  - Class sizes are unequal: 24 left vs 50 right iterations. We correct for this (5.3).
+
+-------------------------------------------------------------------------------------------
+5. WHAT WE DID WITH THE GELO DATA, STEP BY STEP
+-------------------------------------------------------------------------------------------
+
+STEP B1 - Extract the iterations into Excel
+  Script : gelo_bci\gelo_extract_to_excel.py  (about 45 s)
+  Output : gelo_bci\output\left.xlsx   - 24 iterations, 125,825 rows
+           gelo_bci\output\right.xlsx  - 50 iterations, 273,125 rows
+    sheet "data"       one row per sample: label (left/right), iteration (e.g. left_07),
+                       file, mark, sample, time_s, ch1-ch4 in microvolts (unfiltered)
+    sheet "iterations" one row per iteration: file, mark, number, length, notes
+           gelo_bci\output\baseline.csv  the mark 6/7 blocks (for the control test only)
+  Iteration numbering follows the file name: in left11_15.csv, mark 1 = left_11,
+  mark 2 = left_12, and so on.
+
+STEP B2 - Prepare the signal for the SVM
+  (inside gelo_bci\gelo_svm.py)
+  1. Each iteration separately: remove the offset, remove 50 Hz mains noise, keep 1-40 Hz
+     (two-way Butterworth filter, so no time shift). A second copy is filtered 8-30 Hz
+     (mu + beta) for one of the models.
+  2. Use at most the first 40 s of each iteration.
+  3. Cut into 2-second windows, moving 1 s at a time (so neighbouring windows overlap by
+     half). Each window gets its iteration's label.
+     Total: 1,383 windows (466 left, 917 right) from 74 iterations.
+
+STEP B3 - Three SVMs (different features)
+  - svm_c3c4      : ONLY ch2 (C3) and ch3 (C4). Log power in 8-10, 10-13, 13-20,
+                    20-30 Hz for each, plus the C3-minus-C4 difference -> 12 numbers.
+                    The textbook motor-imagery approach.
+  - svm_bandpower : all 4 channels. Log power AND relative power in theta 4-8, mu 8-13,
+                    low beta 13-20, high beta 20-30 Hz -> 32 numbers.
+  - svm_tangent   : all 4 channels, 8-30 Hz. The 4x4 covariance matrix (how channels
+                    vary together), turned into 10 numbers with the Riemannian tangent
+                    space method.
+  Every SVM:
+    - features are scaled first
+    - kernel, C and gamma are chosen by an INNER 3-fold CV on training data only
+        linear: C = 0.01, 0.1, 1, 10
+        rbf   : C = 0.1, 1, 10, 100 and gamma = auto-scaled, 0.01, 0.1
+    - class_weight = "balanced" so the larger right class doesn't dominate
+  Score = BALANCED accuracy (average of the left-correct % and the right-correct %), so
+  that answering "right" every time scores 50 %, not 68 %.
+  We also score per ITERATION: each iteration gets the majority vote of its windows.
+
+STEP B4 - Three ways of testing (this is where the story is)
+  A. by_iteration : 5 folds; whole iterations are held out (windows of one iteration
+                    never split between train and test). BUT the other 4 iterations from
+                    the SAME recording file are in training.
+  B. by_file      : hold out one WHOLE recording file at a time (15 rounds). The model has
+                    never seen anything from the recording it is tested on. This is the
+                    real-life situation (a new session with the headband), and the only
+                    honest test for this data.
+  C. baseline     : like A, but on the mark 6/7 blocks from BEFORE the task, labelled by
+                    the folder they came from. Nobody imagines anything there, so the
+                    right answer is 50 %. If it scored high, the model would be recognising
+                    the recording, not the imagery.
+
+STEP B5 - Results (balanced accuracy; chance = 50 %)
+
+    Test                         svm_c3c4        svm_bandpower     svm_tangent
+    ---------------------------  --------------  ----------------  ----------------
+    A. by_iteration              61.8 % (57.1)   75.4 % (82.6)     77.5 % (81.8)
+    B. by_file  (HONEST)         40.6 % (38.6)   57.3 % (53.0)     65.2 % (66.2)
+    C. baseline control          52.5 % (57.5)   51.8 % (50.0)     55.4 % (55.0)
+    (number in brackets = per-iteration majority-vote accuracy)
+
+  What it means:
+  - A looks good (75-78 %), but it falls to 57-65 % in B once the whole recording is
+    unseen. So most of A's accuracy comes from recognising the RECORDING SESSION
+    (electrode contact, noise level, time of day), not the hand. This is possible because
+    every file is only one class: "knowing the session" = "knowing the label".
+  - C is near 50 %: resting data alone does not give the folder away. So the session
+    effect only shows during the task.
+  - In B the model tends to label a whole file left or right, all together. So there are
+    really only about 15 independent decisions, not 74. With svm_tangent, about 9 of 15
+    files come out correct.
+  - The C3/C4-only model is at or below chance in B (40.6 %). The textbook left/right
+    signal at C3/C4 is not reliable in this data.
+
+STEP B6 - Is 65.2 % real? A permutation test
+  Script : gelo_bci\gelo_perm.py  (about 1.5 hours)
+  Method : 100 times, randomly re-assign which files are "left" and which are "right"
+           (still 5 left and 10 right), then run the WHOLE procedure B again. This shows
+           what scores luck alone produces with this exact setup.
+  Result : shuffled average 48.6 %, top 5 % of shuffles 67.2 % or more. 8 of 100 shuffled
+           runs scored 65.2 % or more.
+           p = 0.089  -> NOT significant (it would need to be below 0.05).
+  Saved  : gelo_bci\output\permutation_result.txt and permutation_svm_tangent.csv
+  (During this test some inner folds had only one class and sklearn printed warnings.
+   Those folds are just skipped; the test still ran correctly to the end.)
+
+STEP B7 - Your MATLAB Ch2/Ch3 ratio script, checked
+  Your script (eeg_ratio_batch.m): for each iteration, compute the spectrum of Ch2 and
+  Ch3, find the single strongest peak between 0 and 60 Hz, average 6 points around it,
+  report the ratio Ch2/Ch3.
+  Issues found:
+    1. Fs = 256 is wrong; the data is 250 Hz. Every frequency it reports is 2.4 % too
+       high. Its built-in check only warns above a 5 % difference, so it stays silent.
+       -> set Fs = 250.
+    2. The "strongest peak" wanders: the peak found ranged from 6.5 Hz (theta) to 17 Hz
+       (beta), with a median of 13 Hz. So it compares different rhythms in different
+       iterations. Fixed bands (mu 8-13 Hz, beta 13-30 Hz) are more meaningful.
+    3. It splits blocks by contiguous runs, so Right1_5 mark 4 (with its 0.5 s gap) counts
+       as two iterations.
+  Python replica + fixed-band version (saved: gelo_bci\output\ch2_ch3_ratio_python.csv):
+
+    Measure (Ch2 / Ch3)              Left median   Right median   p-value
+    -------------------------------  -----------   ------------   -------
+    Your peak ratio                     0.931          0.929        0.95  (no difference)
+    log mu (8-13 Hz) ratio             -0.14          -0.24         0.049
+    log beta (13-30 Hz) ratio          -0.10          -0.05         0.026
+
+  - Mu goes the EXPECTED way (left imagery -> C4 = ch3 weakens -> ratio goes up).
+    This weakly supports ch2 = C3 and ch3 = C4.
+  - Beta goes the OPPOSITE way from the theory.
+  - These p-values treat all 74 iterations as independent. They are not (iterations from
+    the same file are alike), so the real evidence is weaker than these numbers suggest.
+    The per-file values of left and right overlap a lot.
+
+STEP B8 - "Combine the data randomly and give it to the model"
+  Script : gelo_bci\gelo_combined.py
+  Output : gelo_bci\output\combined_shuffled.xlsx
+           sheet "data"  = all 74 iterations, left and right, in random order, with labels
+           sheet "order" = which iteration is at which position
+           gelo_bci\output\combined_results.csv
+
+    Test on the mixed data                         c3c4      bandpower   tangent
+    ---------------------------------------------  --------  ----------  --------
+    random 10-fold over 2 s windows                 68.8 %    85.0 %      85.5 %
+      (per iteration)                               (69.2)    (98.0)      (94.0)
+    random 10-fold over whole iterations            60.9 %    77.8 %      78.4 %
+
+  Why these high numbers can NOT be trusted:
+  - Random over windows: windows overlap by 1 s, so near-copies of the same signal sit in
+    both train and test (leakage). The model partly just recognises data it has seen.
+  - Random over iterations: this is the same as test A. Changing the ORDER of the rows
+    does nothing for an SVM. A test iteration still has its 4 sibling iterations from
+    the same file in training.
+  - Mixing AFTER recording cannot fix the problem. The problem is that each RECORDING
+    contains only one hand. Mixing must happen DURING recording.
+
+
+===========================================================================================
+PART C - CONCLUSIONS AND WHAT TO DO NEXT
+===========================================================================================
+
+-------------------------------------------------------------------------------------------
+6. CONCLUSIONS
+-------------------------------------------------------------------------------------------
+
+  1. Honest testing changes everything. On both datasets, the impressive numbers came from
+     peeking at test data (the paper) or from leakage and a session confound (the headband).
+     The honest numbers are much lower.
+
+  2. Stroke dataset: best honest accuracy is 55.4 % (paper: 72.21 %). The paper's extra
+     accuracy is explained by choosing bands/classifiers on the test set. About 12 of 50
+     patients can be decoded above chance; for the rest, no method works.
+
+  3. Gelo headband: on a recording the model has never seen, the best SVM gets 65.2 %, and
+     that is not statistically better than chance (p = 0.089). Left vs right cannot yet
+     be reliably decoded from this data.
+
+  4. It is NOT proven that the headband can't do it. The current recordings simply can't
+     tell us, because hand and session are mixed up. Once the design is fixed, the same
+     pipeline will give a clear answer.
+
+-------------------------------------------------------------------------------------------
+7. RECOMMENDATIONS FOR THE NEXT RECORDINGS
+-------------------------------------------------------------------------------------------
+
+  1. MOST IMPORTANT: in every session, cue LEFT and RIGHT trials in RANDOM ORDER, with
+     equal numbers of each (e.g. 20 left + 20 right per session). Mark them with
+     different values (e.g. 1 = left, 2 = right), or keep a separate list of the order.
+  2. Record several sessions on different days, each with both hands. Then test with
+     "leave one session out", which is the honest test.
+  3. Use short, fixed-length trials, e.g. 2 s cue -> 4 s imagery -> 2-3 s rest, repeated
+     many times. Many short trials beat a few long ones (ours were 5 s to 148 s).
+  4. Keep the same number of trials for left and right.
+  5. Keep a rest period (like marks 6/7) in every session; it is a useful control.
+  6. Check that ch2 and ch3 really sit over C3 and C4 (about 4-5 cm either side of the top
+     centre of the head, over the hand area). Record the exact positions.
+  7. In MATLAB: set Fs = 250, and use fixed mu (8-13 Hz) and beta (13-30 Hz) bands instead
+     of the "strongest peak".
+  8. Record with the same person, in a quiet room, without moving, with good electrode
+     contact. Note down anything unusual (like the missing iteration 3 or the 148 s one).
+
+  The new data can then be processed by the same scripts (section 8). Only the extraction
+  step needs a small change: take the label from the mark value (or the trial list)
+  instead of from the folder name.
+
+-------------------------------------------------------------------------------------------
+8. FILES AND HOW TO RE-RUN EVERYTHING
+-------------------------------------------------------------------------------------------
+
+  D:\trainsvm\
+    README.md                     short map of the folder
+    EXPERIMENT_REPORT.txt         this file
+    eeg_stroke\                   stroke dataset (original files, untouched)
+      csv\                        our CSV export of every patient (+ README.md)
+    left\  right\                 Gelo headband recordings (original files, untouched)
+    eeg_headphones\               device SDKs (untouched)
+
+    stroke_paper\
+      train_fbcsp_svm.py          A1: copy of the authors' FBCSP + SVM          ~1 min
+      train_improved_svm.py       A2: improved SVMs                             few min
+      export_csv.py               A3: .mat/.edf -> CSV                          ~1.5 min
+      mismatch_analysis.py        A5: true vs shuffled labels test              few min
+      run_all_models.py           A6: all 9 models, honest CV                   ~22 min
+      results\                    summary.csv, per_subject_accuracy.csv,
+                                  confusion_matrices.csv, results_run.log,
+                                  improved_results.txt
+
+    gelo_bci\
+      gelo_extract_to_excel.py    B1: iterations -> left.xlsx / right.xlsx      ~45 s
+      gelo_svm.py                 B2-B5: 3 SVMs x 3 tests                        ~6 min
+      gelo_combined.py            B8: mix left+right randomly, test              ~5 min
+      gelo_perm.py                B6: permutation test (needs gelo_svm.py run)   ~1.5 h
+      output\                     all Excel/CSV results listed above
+
+  Run from a terminal, e.g.:
+      cd D:\trainsvm\gelo_bci
+      python gelo_extract_to_excel.py
+      python gelo_svm.py
+  Software: Python 3.13, numpy, scipy, pandas, scikit-learn 1.7, pyriemann 0.12,
+  joblib, pyarrow, xlsxwriter, openpyxl.
+  All random steps use a fixed seed (0), so results come out the same every time.
+
+
+-------------------------------------------------------------------------------------------
+9. GLOSSARY (plain-English meanings)
+-------------------------------------------------------------------------------------------
+
+  EEG            Electrical brain activity measured with electrodes on the scalp.
+  C3 / C4        Standard electrode spots over the left / right hand areas of the brain.
+  Motor imagery  Imagining a movement without doing it.
+  mu / beta      Brain rhythms at 8-13 Hz / 13-30 Hz that weaken during (imagined)
+                 movement.
+  ERD            That weakening ("event-related desynchronisation").
+  Hz             Cycles per second. Sampling rate 250 Hz = 250 measurements per second.
+  Filter         Removes unwanted frequencies (e.g. 50 Hz mains hum, slow drift).
+  Causal / zero-phase filter
+                 Causal = one pass forward, slightly delays the signal (authors' code).
+                 Zero-phase = forward and backward, no delay (our code).
+  Epoch / window A short slice of signal cut out for analysis (here 2 s or 4 s).
+  Feature        A number computed from the signal that the classifier uses (e.g. power
+                 at C3 in 8-13 Hz).
+  Band power     How strong the signal is within a frequency range.
+  Welch PSD      Standard method to estimate power at each frequency.
+  CSP            Common Spatial Patterns: finds channel mixes that best separate two
+                 classes by their power.
+  FBCSP          Filter-Bank CSP: CSP done separately in several frequency bands.
+  Covariance matrix
+                 A table of how every pair of channels varies together.
+  Riemannian / tangent space
+                 A mathematically correct way to turn covariance matrices into ordinary
+                 features. It often works better than CSP.
+  MDM / FgMDM    Classifiers that assign a trial to the class whose "average covariance
+                 matrix" is closest (FgMDM adds a filtering step first).
+  LDA            Linear Discriminant Analysis, a simple linear classifier.
+  TSLDA          Tangent-space features + LDA.
+  SVM            Support Vector Machine; finds the boundary between classes with the
+                 widest margin.
+  Kernel         Shape of the SVM boundary: linear (straight) or RBF (curved).
+  C, gamma       SVM settings: C = how tightly it fits the training data; gamma = how
+                 curved an RBF boundary may be.
+  Scaling        Putting all features on the same scale (mean 0, std 1). SVMs need it.
+  Training / test set
+                 Data the model learns from / data used only to measure accuracy.
+  Cross-validation (CV)
+                 Split the data into k parts; train on k-1, test on 1; repeat for all
+                 parts.
+  Stratified     Each fold has the same left/right proportion as the whole.
+  Grouped CV     Keeps pieces that belong together (same iteration or same file) on the
+                 same side of the split.
+  Nested CV      An inner CV inside the training data, used to choose settings, so the
+                 test data is never used for any choice.
+  Leakage        Test data (or near-copies of it) sneaking into training; gives
+                 too-high scores.
+  Confound       Something besides the thing you study that also differs between classes
+                 (here: the recording session).
+  Test-set selection / peeking
+                 Choosing a setting or model because it scored best on the test data.
+                 Makes results look better than they really are.
+  Chance level   Score from pure guessing: 50 % for two balanced classes.
+  Balanced accuracy
+                 The average of the per-class accuracies; stays at 50 % for a model that
+                 always says the same class.
+  Kappa          Accuracy corrected for chance: 0 = chance, 1 = perfect.
+  Confusion matrix
+                 A table counting correct and wrong answers per class.
+  Permutation test
+                 Shuffle the labels many times and redo everything, to see which scores
+                 luck alone produces. p = the share of shuffles that beat the real score.
+  p-value        The chance of a result this good or better if there were really no
+                 effect. Below 0.05 is usually called significant.
+  Binomial threshold
+                 For 40 trials, 26 or more correct (65 %) happens by luck less than 5 %
+                 of the time.
+
+===========================================================================================
+                                        END OF REPORT
+===========================================================================================

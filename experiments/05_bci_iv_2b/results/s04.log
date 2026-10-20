@@ -1,0 +1,41 @@
+=== PART A: 2b cross-subject LOSO with C3+C4 only ===
+  csp_lda      EA=0  0.6943  (9/9 above chance)
+  csp_lda      EA=1  0.7441  (9/9 above chance)
+  ts_svm       EA=0  0.6940  (9/9 above chance)
+  ts_svm       EA=1  0.7439  (9/9 above chance)
+  fgmdm        EA=0  0.6896  (9/9 above chance)
+  fgmdm        EA=1  0.7442  (9/9 above chance)
+  logvar_svm   EA=0  0.6974  (9/9 above chance)
+  logvar_svm   EA=1  0.7442  (9/9 above chance)
+
+=== PART B: train on ALL of 2b (C3+C4), test on our recordings ===
+  re-cutting epochs:
+    Left1_5.csv        4/5 kept
+    Left6_10.csv       4/5 kept
+    left11_15.csv      5/5 kept
+    left16_20.csv      4/5 kept
+    left21_25.csv      5/5 kept
+    Right1_5.csv       5/5 kept
+    right11_15.csv     5/5 kept
+    right16_20.csv     5/5 kept
+    right21_25.csv     5/5 kept
+    right26_30.csv     5/5 kept
+    right31_35.csv     5/5 kept
+    right36_40.csv     5/5 kept
+    right41_45.csv     5/5 kept
+    right46_50.csv     5/5 kept
+    right6_10.csv      5/5 kept
+
+  72 epochs from 15 files (left 22, right 50)
+  epoch-level majority baseline 0.6944
+  file-level  majority baseline 0.6667
+  csp_lda      EA=0  epoch 0.4855 | file 0.4500 (6/15) | perm p=0.8324 | says right 39%
+  csp_lda      EA=1  epoch 0.4800 | file 0.3000 (5/15) | perm p=0.9827 | says right 47%
+  ts_svm       EA=0  epoch 0.4473 | file 0.4000 (6/15) | perm p=0.8967 | says right 47%
+  ts_svm       EA=1  epoch 0.4900 | file 0.2500 (4/15) | perm p=0.9931 | says right 49%
+  fgmdm        EA=0  epoch 0.4400 | file 0.3500 (5/15) | perm p=0.9511 | says right 42%
+  fgmdm        EA=1  epoch 0.4900 | file 0.2500 (4/15) | perm p=0.9925 | says right 49%
+  logvar_svm   EA=0  epoch 0.4473 | file 0.4000 (6/15) | perm p=0.8988 | says right 47%
+  logvar_svm   EA=1  epoch 0.5000 | file 0.3500 (6/15) | perm p=0.9567 | says right 50%
+
+Wrote results\gelo_2ch_ceiling.csv, gelo_transfer.csv, gelo_epoch_meta.csv

@@ -1,0 +1,7 @@
+model,validation,window_bal_acc,iteration_bal_acc
+svm_c3c4,random_windows,68.82,69.25
+svm_c3c4,random_iterations,60.88,59.08
+svm_bandpower,random_windows,85.04,98.00
+svm_bandpower,random_iterations,77.81,89.75
+svm_tangent,random_windows,85.49,94.00
+svm_tangent,random_iterations,78.37,82.67

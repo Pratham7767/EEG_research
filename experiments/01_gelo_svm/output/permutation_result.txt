@@ -1,0 +1,1 @@
+observed 65.2 %, null mean 48.6 %, 95th pct 67.2 %, p = 0.089

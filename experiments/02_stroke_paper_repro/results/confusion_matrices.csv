@@ -1,0 +1,10 @@
+model,true_left_pred_left,true_left_pred_right,true_right_pred_left,true_right_pred_right
+csp_lda,503,497,494,506
+fbcsp_svm_paper,533,467,479,521
+fbcsp_svm_tuned,513,487,481,519
+ts_svm,532,468,466,534
+fbts_svm,540,460,485,515
+tslda,538,462,468,532
+fgmdm,538,462,468,532
+tslda_fgmdm_fusion,538,462,468,532
+twfb_fgmdm_nested,550,450,442,558

@@ -1,0 +1,34 @@
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 16 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  40 tasks      | elapsed:   10.0s
+[Parallel(n_jobs=-1)]: Done 130 tasks      | elapsed:   11.3s
+[Parallel(n_jobs=-1)]: Done 256 tasks      | elapsed:   15.4s
+[Parallel(n_jobs=-1)]: Done 418 tasks      | elapsed:  1.3min
+[Parallel(n_jobs=-1)]: Done 504 out of 504 | elapsed:  1.6min finished
+=== s02_run_models ===
+9 subjects, 6520 trials total
+
+504 cells to run
+
+done in 97 s, 504 results
+
+--- P1_within_subject  (artefact-flagged trials KEPT) ---
+model           EA off     EA on    delta  >chance
+csp_lda         0.7480    0.7905  +0.0425     9/9
+csp_svm         0.7480    0.7898  +0.0418     8/9
+fbcsp_svm       0.7668    0.8020  +0.0352     8/9
+ts_svm          0.7548    0.7846  +0.0298     8/9
+tslda           0.7544    0.7855  +0.0311     8/9
+fgmdm           0.7544    0.7855  +0.0311     8/9
+logvar_svm      0.7299    0.7851  +0.0552     9/9
+
+--- P2_cross_subject  (artefact-flagged trials KEPT) ---
+model           EA off     EA on    delta  >chance
+csp_lda         0.6996    0.7468  +0.0472     9/9
+csp_svm         0.7039    0.7468  +0.0429     9/9
+fbcsp_svm       0.6936    0.7353  +0.0417     9/9
+ts_svm          0.6918    0.7456  +0.0538     9/9
+tslda           0.6864    0.7440  +0.0576     9/9
+fgmdm           0.6864    0.7440  +0.0576     9/9
+logvar_svm      0.6953    0.7468  +0.0515     9/9
+
+Wrote results\per_subject.csv and results\summary.csv

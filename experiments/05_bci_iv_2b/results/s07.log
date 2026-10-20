@@ -1,0 +1,10 @@
+  3ch (C3,Cz,C4)  P1  artefact-free  n=2241  acc=0.8041 bal=0.8041 kappa=0.6082
+  3ch (C3,Cz,C4)  P1  all trials     n=2840  acc=0.7954 bal=0.7954 kappa=0.5908
+  3ch (C3,Cz,C4)  P2  artefact-free  n=5267  acc=0.7534 bal=0.7534 kappa=0.5067
+  3ch (C3,Cz,C4)  P2  all trials     n=6520  acc=0.7486 bal=0.7486 kappa=0.4972
+  2ch (C3,C4)     P1  artefact-free  n=2241  acc=0.7840 bal=0.7841 kappa=0.5681
+  2ch (C3,C4)     P1  all trials     n=2840  acc=0.7771 bal=0.7771 kappa=0.5542
+  2ch (C3,C4)     P2  artefact-free  n=5267  acc=0.7492 bal=0.7492 kappa=0.4984
+  2ch (C3,C4)     P2  all trials     n=6520  acc=0.7462 bal=0.7462 kappa=0.4923
+
+Wrote results\confusion_2b.csv and figures\fig5_confusion_2b.png

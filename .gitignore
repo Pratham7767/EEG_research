@@ -1,0 +1,51 @@
+# --- raw and derived data (large; kept on disk, not in git) ---
+data/
+experiments/05_bci_iv_2b/data/
+experiments/05_bci_iv_2b/subjectwise/
+experiments/05_bci_iv_2b/erd_ers/cache/
+experiments/01_gelo_svm/output/*.xlsx
+experiments/01_gelo_svm/output/baseline.csv
+*.npz
+*.pkl
+*.h5
+*.edf
+
+# large result files (small CSVs/figures are kept)
+experiments/05_bci_iv_2b/classifier/results.mat
+
+# --- archives and leftovers ---
+archive/
+EXPERIMENT_2/
+*.zip
+
+# --- vendor binaries, SDKs, third-party repos ---
+hardware/eeg_headphones/**/*.dll
+hardware/eeg_headphones/**/*.exe
+hardware/eeg_headphones/**/*.sys
+hardware/eeg_headphones/**/*.cat
+hardware/eeg_headphones/**/*.inf
+hardware/eeg_headphones/**/*.whl
+hardware/eeg_headphones/USB-BT500_*/
+hardware/eeg_headphones/**/License key.docx
+# vendor SDKs (proprietary, ~270 MB) - keep only our own recorder apps in git
+hardware/eeg_headphones/Capsule_2.0.59/
+hardware/eeg_headphones/CapsuleApp-v2.0.59/
+hardware/eeg_headphones/brain_bit/
+hardware/eeg_headphones/pyneurosdk2-1.0.15/
+third_party/covariancetoolbox/
+
+# --- app runtime output ---
+apps/cognitive_score/sessions/
+**/logs/
+
+# --- Python / tooling ---
+__pycache__/
+*.pyc
+.venv*/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# --- MATLAB ---
+*.asv
+*.mex*
+slprj/

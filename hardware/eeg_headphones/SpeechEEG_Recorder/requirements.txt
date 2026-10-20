@@ -1,0 +1,7 @@
+customtkinter>=5.2.0    # Modern dark-themed GUI framework
+numpy>=1.21.0          # Array operations, FFT, signal processing
+scipy>=1.7.0           # Signal processing (Hilbert, resample, Butterworth)
+matplotlib>=3.5.0      # Live EEG/PSD graphing
+h5py>=3.7.0            # HDF5 file format export
+pvrecorder>=1.2.0      # Picovoice audio recorder (16 kHz mono)
+pyedflib>=0.1.30       # BDF/EDF file writing

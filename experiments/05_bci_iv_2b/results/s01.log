@@ -1,0 +1,71 @@
+=== s01_fetch_2b ===
+window 0.5-3.5 s after CUE, cue at +3 s from `trial` (750 samples at 250 Hz)
+main band 8-30 Hz, 7 filter-bank bands
+
+--- download ---
+
+--- epoch ---
+  B01 session 1:  120 trials (left 60, right 60, artefact-flagged 18, dropped at edge 0)
+  B01 session 2:  120 trials (left 60, right 60, artefact-flagged 22, dropped at edge 0)
+  B01 session 3:  160 trials (left 80, right 80, artefact-flagged 36, dropped at edge 0)
+  B01 session 4:  160 trials (left 80, right 80, artefact-flagged 48, dropped at edge 0)
+  B01 session 5:  160 trials (left 80, right 80, artefact-flagged 44, dropped at edge 0)
+  B01 TOTAL 720 trials, 5 sessions, balance [360 360]
+
+  B02 session 1:  120 trials (left 60, right 60, artefact-flagged 22, dropped at edge 0)
+  B02 session 2:  120 trials (left 60, right 60, artefact-flagged 20, dropped at edge 0)
+  B02 session 3:  160 trials (left 80, right 80, artefact-flagged 29, dropped at edge 0)
+  B02 session 4:  120 trials (left 60, right 60, artefact-flagged 18, dropped at edge 0)
+  B02 session 5:  160 trials (left 80, right 80, artefact-flagged 17, dropped at edge 0)
+  B02 TOTAL 680 trials, 5 sessions, balance [340 340]
+
+  B03 session 1:  120 trials (left 60, right 60, artefact-flagged 30, dropped at edge 0)
+  B03 session 2:  120 trials (left 60, right 60, artefact-flagged 32, dropped at edge 0)
+  B03 session 3:  160 trials (left 80, right 80, artefact-flagged 42, dropped at edge 0)
+  B03 session 4:  160 trials (left 80, right 80, artefact-flagged 43, dropped at edge 0)
+  B03 session 5:  160 trials (left 80, right 80, artefact-flagged 47, dropped at edge 0)
+  B03 TOTAL 720 trials, 5 sessions, balance [360 360]
+
+  B04 session 1:  120 trials (left 60, right 60, artefact-flagged 3, dropped at edge 0)
+  B04 session 2:  140 trials (left 70, right 70, artefact-flagged 11, dropped at edge 0)
+  B04 session 3:  160 trials (left 80, right 80, artefact-flagged 7, dropped at edge 0)
+  B04 session 4:  160 trials (left 80, right 80, artefact-flagged 7, dropped at edge 0)
+  B04 session 5:  160 trials (left 80, right 80, artefact-flagged 6, dropped at edge 0)
+  B04 TOTAL 740 trials, 5 sessions, balance [370 370]
+
+  B05 session 1:  120 trials (left 60, right 60, artefact-flagged 17, dropped at edge 0)
+  B05 session 2:  140 trials (left 70, right 70, artefact-flagged 4, dropped at edge 0)
+  B05 session 3:  160 trials (left 80, right 80, artefact-flagged 17, dropped at edge 0)
+  B05 session 4:  160 trials (left 80, right 80, artefact-flagged 4, dropped at edge 0)
+  B05 session 5:  160 trials (left 80, right 80, artefact-flagged 43, dropped at edge 0)
+  B05 TOTAL 740 trials, 5 sessions, balance [370 370]
+
+  B06 session 1:  120 trials (left 60, right 60, artefact-flagged 44, dropped at edge 0)
+  B06 session 2:  120 trials (left 60, right 60, artefact-flagged 35, dropped at edge 0)
+  B06 session 3:  160 trials (left 80, right 80, artefact-flagged 26, dropped at edge 0)
+  B06 session 4:  160 trials (left 80, right 80, artefact-flagged 23, dropped at edge 0)
+  B06 session 5:  160 trials (left 80, right 80, artefact-flagged 46, dropped at edge 0)
+  B06 TOTAL 720 trials, 5 sessions, balance [360 360]
+
+  B07 session 1:  120 trials (left 60, right 60, artefact-flagged 13, dropped at edge 0)
+  B07 session 2:  120 trials (left 60, right 60, artefact-flagged 9, dropped at edge 0)
+  B07 session 3:  160 trials (left 80, right 80, artefact-flagged 22, dropped at edge 0)
+  B07 session 4:  160 trials (left 80, right 80, artefact-flagged 53, dropped at edge 0)
+  B07 session 5:  160 trials (left 80, right 80, artefact-flagged 35, dropped at edge 0)
+  B07 TOTAL 720 trials, 5 sessions, balance [360 360]
+
+  B08 session 1:  160 trials (left 80, right 80, artefact-flagged 28, dropped at edge 0)
+  B08 session 2:  120 trials (left 60, right 60, artefact-flagged 30, dropped at edge 0)
+  B08 session 3:  160 trials (left 80, right 80, artefact-flagged 54, dropped at edge 0)
+  B08 session 4:  160 trials (left 80, right 80, artefact-flagged 34, dropped at edge 0)
+  B08 session 5:  160 trials (left 80, right 80, artefact-flagged 56, dropped at edge 0)
+  B08 TOTAL 760 trials, 5 sessions, balance [380 380]
+
+  B09 session 1:  120 trials (left 60, right 60, artefact-flagged 29, dropped at edge 0)
+  B09 session 2:  120 trials (left 60, right 60, artefact-flagged 29, dropped at edge 0)
+  B09 session 3:  160 trials (left 80, right 80, artefact-flagged 25, dropped at edge 0)
+  B09 session 4:  160 trials (left 80, right 80, artefact-flagged 45, dropped at edge 0)
+  B09 session 5:  160 trials (left 80, right 80, artefact-flagged 30, dropped at edge 0)
+  B09 TOTAL 720 trials, 5 sessions, balance [360 360]
+
+Wrote data\sub-BXX.npz, checksums.csv, epoch_meta.csv

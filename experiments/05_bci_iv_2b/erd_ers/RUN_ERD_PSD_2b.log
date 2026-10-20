@@ -1,0 +1,208 @@
+
+============================================================================
+ERD/ERS and PSD   -   BCI Competition IV dataset 2b
+============================================================================
+run started           2026-10-16 20:59:45
+subjects              B01..B09  (9)
+sampling rate         250 Hz
+band                  8-30 Hz, Butterworth order 2, ZERO-PHASE (filtfilt)
+epoch                 -2.5 to +5.0 s rel. cue  (1875 samples)
+baseline              -2.0 to -1.0 s
+measurement window    +0.5 to +3.5 s rel. cue
+smoothing             101 samples (0.40 s)
+trial estimator       trimmed  (20% each tail)
+bootstrap             200 resamples
+
+============================================================================
+SECTION 2 - verifying the cue offset against the data
+============================================================================
+
+AUC of log(C3)-log(C4) for predicting RIGHT-hand MI.
+1.0 s window sliding from the stored `trial` index, 1120 trials pooled.
+
+   offset (s)      AUC    |AUC-0.5|
+      0.00      0.4806      0.0194
+      0.25      0.4985      0.0015
+      0.50      0.4977      0.0023
+      0.75      0.4986      0.0014
+      1.00      0.5082      0.0082
+      1.25      0.4961      0.0039
+      1.50      0.4971      0.0029
+      1.75      0.5035      0.0035
+      2.00      0.4948      0.0052
+      2.25      0.4944      0.0056
+      2.50      0.4920      0.0080
+      2.75      0.4560      0.0440
+      3.00      0.4164      0.0836   <-- leaves chance   <-- assumed CUE
+      3.25      0.3691      0.1309
+      3.50      0.3253      0.1747
+      3.75      0.3170      0.1830
+      4.00      0.3303      0.1697
+      4.25      0.3392      0.1608
+      4.50      0.3430      0.1570
+      4.75      0.3488      0.1512
+      5.00      0.3558      0.1442
+      5.25      0.3622      0.1378
+      5.50      0.3721      0.1279
+      5.75      0.3820      0.1180
+      6.00      0.3850      0.1150
+      6.25      0.3857      0.1143
+      6.50      0.3999      0.1001
+
+First offset with |AUC-0.5| >= 0.08 : 3.00 s.
+A 1.0 s window starting there covers [3.00, 4.00] s, so the cue onset
+must lie inside that interval. CFG.cueOffsetSec = 3.00 s.
+--> CONSISTENT.
+The effect then persists to 7.50 s, i.e. roughly 4.5 s of imagery after
+the cue, which matches the 4 s imagery period in the paradigm.
+Do NOT read the argmax: imagery lasts seconds, so the peak is a tie inside
+the plateau and moves around with noise. The ONSET is what locates the cue.
+AUC below 0.5 only means C3 power goes DOWN for right-hand MI, which is
+the textbook contralateral direction.
+
+============================================================================
+SECTION 3 - loading and epoching
+============================================================================
+B01   720 trials (left 360, right 360, flagged 168)   [cached]
+B02   680 trials (left 340, right 340, flagged 106)   [cached]
+B03   720 trials (left 360, right 360, flagged 194)   [cached]
+B04   740 trials (left 370, right 370, flagged  34)   [cached]
+B05   740 trials (left 370, right 370, flagged  85)   [cached]
+B06   720 trials (left 360, right 360, flagged 174)   [cached]
+B07   720 trials (left 360, right 360, flagged 132)   [cached]
+B08   760 trials (left 380, right 380, flagged 202)   [cached]
+B09   720 trials (left 360, right 360, flagged 158)   [cached]
+
+TOTAL 6520 trials across 9 subjects.
+
+============================================================================
+SECTION 4 - ERD/ERS curves
+============================================================================
+B01  curves done
+B02  curves done
+B03  curves done
+B04  curves done
+B05  curves done
+B06  curves done
+B07  curves done
+B08  curves done
+B09  curves done
+
+============================================================================
+SECTION 5 - results
+============================================================================
+
+Mean ERD% over 0.5-3.5 s after the cue. Negative = desynchronisation,
+i.e. that cortex is active. Contralateral rule: LEFT hand -> C4, RIGHT hand -> C3.
+
+sub    class      n        C3        Cz        C4   contra-ipsi   per-trial         p
+----------------------------------------------------------------------------------------
+B01    left     360    -17.34      3.46    -30.53        -13.19       -5.86    0.0380
+B01    right    360    -34.21     -7.16    -14.05        -20.16      -46.09    0.0000
+B02    left     340    -19.76    -23.07    -33.06        -13.30      -12.19    0.0000
+B02    right    340    -19.47    -20.49    -25.54          6.06        4.32    0.0265
+B03    left     360     -1.05    -22.98    -21.58        -20.52      -29.91    0.0000
+B03    right    360     -6.22    -20.31    -16.92         10.71        9.72    0.1370
+B04    left     370      2.30     -0.22    -31.20        -33.50      -66.89    0.0000
+B04    right    370    -46.32    -13.60     33.44        -79.76      -77.92    0.0000
+B05    left     370    -42.15    -35.22    -44.41         -2.26       -3.44    0.0789
+B05    right    370    -53.59    -42.97    -38.62        -14.97      -18.10    0.0000
+B06    left     360    -24.58    -30.66    -38.79        -14.21      -17.27    0.0000
+B06    right    360    -35.67    -30.03    -21.85        -13.82      -15.54    0.0000
+B07    left     360     -2.91    -23.31    -21.15        -18.24      -27.85    0.0000
+B07    right    360    -17.55    -13.30      9.95        -27.50      -27.79    0.0000
+B08    left     380    -12.44    -38.16    -25.52        -13.08       -3.96    0.5709
+B08    right    380    -48.74    -20.90     75.97       -124.71     -163.83    0.0000
+B09    left     360    -15.39      4.09    -22.11         -6.72       -8.76    0.1515
+B09    right    360    -46.99     -2.59     -0.67        -46.33      -57.49    0.0000
+----------------------------------------------------------------------------------------
+contra-ipsi is taken from the SAME curves that are plotted.
+"per-trial" normalises every trial to its own baseline first; it is a
+different quantity and it is what the paired t-test (column p) operates on.
+They can differ in size and occasionally in sign. Quoting one while plotting
+the other is a mistake that is easy to make and hard to notice.
+Correct lateralisation (contralateral more negative): 16 of 18 cells.
+   exception: B02 right hand   contra-ipsi = +6.06, p = 0.026
+   exception: B03 right hand   contra-ipsi = +10.71, p = 0.137
+
+GRAND AVERAGE over 0.5-3.5 s:
+   LEFT  hand MI :  C3  -14.81%   Cz  -18.45%   C4  -29.82%   <- C4 contralateral
+   RIGHT hand MI :  C3  -34.31%   Cz  -19.04%   C4   +0.19%   <- C3 contralateral
+
+--- FIX (3): outlier sensitivity of the mean-of-squares ---
+Cells where the paper's plain mean and the 20% trimmed mean differ by >20 pp:
+   B08 right   C3    -41.4 ->   -48.7     C4    +55.7 ->   +76.0
+Largest single change: 20.2 percentage points.
+The robust estimator changes only the cells a few loud trials were driving.
+
+--- artefact-flagged trials: KEPT (main pass) vs REMOVED ---
+Largest shift in any cell:  C3 5.12 pp,  C4 10.34 pp.
+C3-vs-C4 ordering unchanged in 18 of 18 cells. Artefact rejection is not
+doing hidden work in either direction. Both columns are in erd_stats.csv.
+
+============================================================================
+SECTION 6 - PSD: band power = integrated PSD = covariance diagonal
+============================================================================
+
+Subject B04, 740 trials, window 0.5-3.5 s after the cue.
+
+ch        mean(x_band^2)    integral of PSD     ratio   Pearson r   r vs cov diag
+C3              5.49 uV2           6.10 uV2     1.112      0.9841          1.0000
+Cz              3.80 uV2           4.22 uV2     1.112      0.9777          1.0000
+C4              4.37 uV2           4.87 uV2     1.114      0.9871          1.0000
+
+max |band power - covariance diagonal| / band power = 1.34e-03
+
+The constant ratio is the FILTER, not a disagreement: an order-2
+Butterworth is not a brick wall, so it already attenuates inside 8-30 Hz
+while the Welch integral cuts sharply at the band edges. Because the
+offset is CONSTANT it cancels exactly in (A-R)/R, which is why the ERD
+percentage does not care which of the two is used.
+The covariance diagonal is the same number to ~1e-3, and that diagonal
+is what logvar_svm in s02_run_models.py classifies. These ERD curves and
+that model read ONE physical quantity, computed two ways.
+
+============================================================================
+SECTION 7 - time-frequency ERD maps
+============================================================================
+
+Strongest ERD and the frequency it sits at, per subject
+(C3 during right-hand MI, searched over 7-35 Hz):
+
+   sub      peak ERD %      at (Hz)
+   B01          -44.5%        11.7
+   B02          -47.7%         9.8
+   B03          -69.9%        31.2
+   B04          -46.2%        10.7
+   B05          -61.8%         9.8
+   B06          -65.0%        34.2
+   B07          -38.0%        20.5
+   B08          -58.1%         7.8
+   B09          -58.5%        23.4
+
+   range 7.8 - 34.2 Hz, median 11.7 Hz
+
+A single 8-30 Hz band assumes one setting fits every subject. The spread
+above is the cost of that assumption, and it is the honest argument for
+per-subject band selection - chosen on TRAINING data only, which is exactly
+where TWFB_DGFMDM.m went wrong in the stroke paper.
+
+============================================================================
+DONE
+============================================================================
+elapsed               47.7 s
+figures and tables    D:\trainsvm\EXPERIMENT_2\erd_ers
+
+  erd_B01.png .. erd_B09.png      per subject, left and right panels,
+                                  C3/Cz/C4 with 95% bootstrap bands
+  erd_grand_average.png           the same, averaged over subjects
+  erd_overlay.png                 C3/C4 x left/right on one axes
+  erd_timefrequency.png           ERD% over time AND frequency
+  psd_spectra.png                 baseline vs imagery spectra
+  psd_vs_bandpower.png            band power = integrated PSD, per trial
+  erd_stats.csv                   per subject x class, incl. clean pass
+  erd_estimator_comparison.csv    paper mean vs robust mean
+  erd_peak_frequency.csv          per-subject peak ERD frequency
+  erd_curves.csv                  every curve, long format, with CI
+  psd_equivalence.csv             the equivalence table
+  RUN_ERD_PSD_2b.log              this console output

@@ -1,0 +1,17 @@
+[Parallel(n_jobs=-1)]: Using backend LokyBackend with 16 concurrent workers.
+[Parallel(n_jobs=-1)]: Done  30 out of  50 | elapsed: 13.6min remaining:  9.0min
+[Parallel(n_jobs=-1)]: Done  41 out of  50 | elapsed: 19.0min remaining:  4.2min
+[Parallel(n_jobs=-1)]: Done  50 out of  50 | elapsed: 22.4min finished
+             model  mean_acc  sd_acc  median_acc  mean_kappa  subjects_above_chance  paper_acc
+           csp_lda     50.45   11.30       48.75        0.01                      6      55.57
+   fbcsp_svm_paper     52.70   12.82       53.75        0.05                     10      57.57
+   fbcsp_svm_tuned     51.60   13.19       50.00        0.03                      8        NaN
+            ts_svm     53.30   13.28       53.75        0.07                      9        NaN
+          fbts_svm     52.75   12.60       50.00        0.05                     12        NaN
+             tslda     53.50   13.06       52.50        0.07                      9        NaN
+             fgmdm     53.50   13.06       52.50        0.07                      9        NaN
+tslda_fgmdm_fusion     53.50   13.06       52.50        0.07                      9      61.20
+ twfb_fgmdm_nested     55.40   11.42       53.75        0.11                     12      72.21
+
+Chance level 50 %; per subject, >= 65 % (26/40) beats chance at p < 0.05.
+By chance alone, ~2 of 50 subjects would pass. Elapsed 1344 s

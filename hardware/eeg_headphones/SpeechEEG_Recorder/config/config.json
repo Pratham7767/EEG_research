@@ -1,0 +1,29 @@
+{
+  "eeg": {
+    "sampling_rate": 250,
+    "bipolar": true
+  },
+  "audio": {
+    "sampling_rate": 44100,
+    "channels": 1
+  },
+  "trials": {
+    "default_words": ["right", "left", "up", "down", "yes", "no"],
+    "reps_per_word": 5,
+    "rest_between_ms": 3000,
+    "order": "random",
+    "max_trial_duration_s": 5
+  },
+  "resistance": {
+    "good_threshold_ohms": 10000,
+    "acceptable_threshold_ohms": 30000
+  },
+  "connection": {
+    "max_retries": 3,
+    "retry_delays_s": [2, 5, 10],
+    "search_time_s": 10
+  },
+  "export": {
+    "base_dir": "data"
+  }
+}
