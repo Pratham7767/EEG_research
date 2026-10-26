@@ -1,0 +1,51 @@
+{
+  "kind": "csp_svm_ea",
+  "params": {
+    "W": [
+      [
+        0.9996281491294877,
+        -0.0011374755530224444
+      ],
+      [
+        0.027268360199222248,
+        0.999999353074474
+      ]
+    ],
+    "mean": [
+      -0.29649687521157847,
+      -0.2510970651419294
+    ],
+    "scale": [
+      0.49308907049003636,
+      0.5071212468078135
+    ],
+    "coef": [
+      -0.3950555439723356,
+      0.43745658734761733
+    ],
+    "intercept": 0.005271968000564568
+  },
+  "meta": {
+    "model": "CSP + SVM + Euclidean Alignment (as gelo_svm_pipeline.py)",
+    "band": [
+      8.0,
+      30.0
+    ],
+    "win_s": 2.0,
+    "svm_C": 0.1,
+    "montage": "ear_bipolar",
+    "created": "2026-10-26 19:21:13",
+    "trained_on": "BCI IV 2b, subjects 1,2,3,4,5,6,7,8,9",
+    "weighting": "2b only",
+    "eval_win": [
+      1.5,
+      4.0
+    ],
+    "score": null,
+    "verdict": "BASE MODEL: not yet tested on you - train with your runs"
+  },
+  "ref": null,
+  "fs": 250,
+  "hop": 10,
+  "montage": "ear_bipolar"
+}

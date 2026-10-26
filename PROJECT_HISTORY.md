@@ -118,6 +118,47 @@ left hand → power drops at C4; right hand → power drops at C3.
   * Caveat: one decision per 10 same-hand trials, so this is a block-level decision, not
     real-time single-trial control.
 
+### Oct 25: real-time BCI app  →  `apps/mi_bci/`
+* Researched how Graz ran the 2b sessions live (Leeb et al. 2007 + Scherer et al., same lab): 1 s log
+  band power + LDA every sample, smiley moved by the sign of the output integrated over 2 s, classifier
+  retrained between sessions only if ≥ 5 % better. Plan written as a doc ("Real-time Left/Right BCI: How
+  Graz Did It and How We Build It").
+* Built the whole loop as a desktop app: Connect (scan, impedance, 10 s signal test) → Record (baseline,
+  movement check, screening) → Check & Train (alpha check, ERD check, nested run-wise training +
+  permutation test) → Feedback (smiley, 25 Hz) → Retrain (Graz ≥ 5-point rule). Works with the
+  headphones (pyneurosdk2), a simulator, or replayed recordings.
+* Verified: 15/15 tests (incl. a leak check: no signal → chance), app self-test through the real window
+  (signal test, all run types, training, feedback; every drawn frame checked against the state), and
+  BCI IV 2b streamed through the live engine with random packet sizes: outputs identical to offline.
+  Trained on the 2 screening sessions only (as Graz did), then run live on the 3 feedback sessions with
+  no retraining: **mean live accuracy 73 % (S3), 72 % (S4), 73 % (S5); integrated error 33 %** (Graz
+  reported ~28–30 % for their cue-based feedback sessions). Best B04 94–98 %, weakest B02/B03 at 51–56 %,
+  the same subjects every method struggles with. Details: `apps/mi_bci/_out/replay_2b/summary.json`.
+* Not verified (needs the headset on a person): see Open problems below.
+
+### Oct 26: first real session, P01  →  `data/mi_bci/P01/`
+* Headset works: signal test 9–18 µV (C3-A1, C4-A2), 250 Hz, eyes-closed alpha ×2.6–4.2 at 11.5 Hz.
+* Recorded 1 baseline, 1 movement run, 1 screening run (10 + 10 trials each), 1 feedback run.
+* ERD check rewritten (separate per run type; classic trial-averaged ERD; log-ratio permutation test). With it,
+  **real hand movement shows the expected opposite-side mu change** (p = 0.041, only 10 trials per hand):
+  right hand C3 −15 % / C4 +25 %, left hand C3 +23 % / C4 −1 %. Imagery (1 run) shows nothing yet.
+* Feedback was run with an unvalidated model (1 run only) → 50 %, as expected. The app now shows a
+  score + verdict after training and warns before feedback when the model is not READY.
+* 2b as a base model (`tools/base_model_check.py`): 2b only 45 %, 2b + P01 45 %, P01 only 41 % on 80
+  trials, all at chance. Not enough P01 imagery data yet to tell whether the base helps.
+* Mains hum rose from 13x to 80–330x the background during task runs (charger / hands near laptop);
+  the app now warns after each run. Beep was inaudible: the headphones are also a Windows audio device
+  ("Headphones (USAMS-YX05)") and Windows' default output, so beeps went over Bluetooth and were sometimes
+  lost. Now `mibci/sound.py` keeps one audio stream open on the laptop speakers (chosen automatically,
+  selectable on tab 1, never the headset by default); 300 ms tones; `tools/check_sound.py` = 5/5 played.
+* **The app now uses our SVM** (CSP + SVM + Euclidean Alignment, as `gelo_svm_pipeline.py`), rebuilt to
+  run live (2 s covariance every 40 ms). Base = all 9 2b subjects (`apps/mi_bci/models/base_2b_svm.json`);
+  Train = refit on 2b + the subject's runs, choosing 2b only / 2b + yours / yours only by leave-one-run-out.
+  Checked on 2b, each subject as a new user (base from the other 8, improved with their screening
+  sessions, then streamed live on their 3 feedback sessions): **base only 75.9 %, improved 76.0 %**
+  (Graz LDA trained on own screening: 72–73 %); live engine = offline in every subject.
+  P01 so far (2 cued runs): 50 %, NOT READY, too little imagery data.
+
 ---
 
 ## What we know now
@@ -139,6 +180,21 @@ left hand → power drops at C4; right hand → power drops at C3.
 4. Confirm what ch1/ch4 are on the headband.
 
 ---
+
+## Open problems with the real-time app (updated 2026-10-26)
+
+Solved since 2026-10-25: the app has run on the headset (P01: connect, 250 Hz stream, signal test 9–18 µV,
+so the volts assumption holds); beeps; the ERD check; the score/verdict before feedback; per-subject model.
+
+1. **Imagery on our headset is not shown yet.** P01 has 1 imagery run (10 trials per hand). Real movement
+   already shows the expected opposite-side mu change (p = 0.041). Needs 4–6 imagery runs.
+2. **Does the 2b base SVM help on our montage?** On 2b itself the base gives 75.9 % on new people; on P01
+   everything is at chance so far. `tools/base_model_check.py` / the Train report answer it once there is data.
+3. **Mains hum** rose 6–25× during P01's task runs (charger / hands near the laptop). The app warns.
+4. **Montage** (C3−A1, C4−A2) is untested against alternatives on real data. Switch in `config.py`.
+5. **Bluetooth delay is not measured.** Markers may be early by tens of ms. Small next to 2 s windows.
+6. **PackNum = samples is an assumption.** P01 had 8 NaN-filled samples per run, so drops are rare.
+7. The 2026-04-14 raw recording is bad contact (13 % pinned) and should not be used.
 
 ## Repository housekeeping (2026-10-20)
 

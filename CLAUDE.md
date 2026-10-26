@@ -105,6 +105,34 @@ archive/                        old zips, old README, move log, drive_bundle scr
 Caveat to repeat whenever 10-trial averaging is discussed: one decision per 10 same-class trials,
 with groups formed using known labels, so it is a block-level decision, not single-trial control.
 
+## 6b. Real-time app `apps/mi_bci/` (built 2026-10-25)
+
+* Python 3.13 + tkinter. `run.bat`, `run_simulator.bat`, `app.py --selftest`, `python -m pytest -q tests`,
+  `tools/replay_2b.py [subj]` (2b streamed through the live engine), `tools/check_sdk.py`,
+  `tools/check_real_signal.py <csv> --volts`. Package `mibci/`: config, sources (HeadphonesSource via
+  pyneurosdk2 from `hardware/eeg_headphones/brain_bit/pyneurosdk2-1.0.15`, SimulatedSource, ReplaySource),
+  dsp (causal Butterworth-5 log band power, 1 s window, output every 10 samples; artifact = 1 Hz high-passed
+  1 s ptp > 4x running median or > 1500 uV; montage ear_bipolar C3-A1, C4-A2), decoder (shrinkage LDA JSON,
+  neg = left; 2 s sign integrator), paradigm (sample-clock state machine; Graz timings; baseline blocks;
+  RecordedParadigm), engine (pieces split on output boundaries -> packet-independent), recorder
+  (data/mi_bci/<subj>/<stamp>_<type>/eeg.csv events.csv outputs.csv run.json), trainer (nested
+  leave-one-run-out greedy selection <= 6 features, permutation p on fixed mu/beta, Graz >= 5-pt switch rule),
+  analysis (alpha, contralateral ERD permutation test, signal_quality), cli.
+* Verified: 21 tests, UI self-test (canvas read-back checks, no screen capture), 2b replay identical to offline.
+* MODEL (config.MODEL="svm", since 2026-10-26, user's explicit wish): CSP+SVM+EA live (`mibci/svm.py`,
+  `svm_trainer.py`): 8-30 Hz causal, 2 s window covariance every 40 ms, EA per recording day, CSP log-var,
+  scaler, LinearSVC C=0.1 balanced; JSON params. Base `models/base_2b_svm.json` (all 9 2b; cache in
+  _out/base_2b_cache, `tools/build_base_svm.py`). Train = 3 weightings chosen by leave-one-run-out; score =
+  pooled held-out accuracy, binomial p. `tools/svm_check_2b.py`: base-only 75.9 %, improved 76.0 % live.
+* Sound: `mibci/sound.py`, one sounddevice stream on laptop speakers (Windows default was the EEG headset).
+* P01 (2026-10-26): alpha OK, movement mu lateralised p=0.041 (10 trials/hand), imagery not yet; mains hum
+  high in task runs. Next: 2 more movement runs, 4-6 screening runs, then train.
+* Running Python from Claude: use MATLAB `system('start "x" /b cmd /c "... > _out\log.txt 2>&1"')` and poll the
+  log via device_bash (foreground calls time out at 60 s). Do NOT screen-capture: the user's other windows
+  (a video) ended up in screenshots once; those files were overwritten.
+* Open: never run on the headset; units assumed volts; 2026-04-14 raw recording is bad contact (13 % pinned);
+  Bluetooth delay unmeasured; PackNum-per-sample assumption; montage untested on real data.
+
 ## 7. Rules / pitfalls established in this project
 
 1. Cue = `trial` + 3 s in 2b. Always verify event indices (the stroke data had a marker-2 trap too).
