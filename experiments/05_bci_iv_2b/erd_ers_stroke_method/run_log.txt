@@ -1,0 +1,32 @@
+ERD/ERS, BCI IV 2b, stroke method  (2026-11-01 21:11)
+8-30 Hz Butterworth-2 filtfilt, square, mean, smooth 0.4 s, baseline = 1 s before cue, plot 0..8 s
+
+B01  360 left  360 right  (dropped: 0 NaN, 0 edge; 168 artefact-flagged kept)  1.2 s
+B02  340 left  340 right  (dropped: 0 NaN, 0 edge; 106 artefact-flagged kept)  2.0 s
+B03  360 left  360 right  (dropped: 0 NaN, 0 edge; 194 artefact-flagged kept)  2.7 s
+B04  370 left  370 right  (dropped: 0 NaN, 0 edge; 34 artefact-flagged kept)  3.4 s
+B05  370 left  370 right  (dropped: 0 NaN, 0 edge; 85 artefact-flagged kept)  4.1 s
+B06  360 left  360 right  (dropped: 0 NaN, 0 edge; 174 artefact-flagged kept)  4.8 s
+B07  360 left  360 right  (dropped: 0 NaN, 0 edge; 132 artefact-flagged kept)  5.5 s
+B08  380 left  380 right  (dropped: 0 NaN, 0 edge; 202 artefact-flagged kept)  6.2 s
+B09  360 left  360 right  (dropped: 0 NaN, 0 edge; 158 artefact-flagged kept)  6.8 s
+
+Mean ERD/ERS % over 0.5-3.5 s after the cue (smoothed 0.4 s)
+subject   Left MI: C3      C4    Right MI: C3      C4    opposite side drops more?
+B01        -15.4   -40.0          -24.3   -15.7     L:yes R:yes
+B02        -13.7   -31.8          -17.1   -23.4     L:yes R:NO 
+B03        -14.5   -25.3          -20.4   -17.3     L:yes R:yes
+B04         -1.2   -31.1          -42.2   +33.8     L:yes R:yes
+B05        -27.6   -30.3          -35.1   -16.2     L:yes R:yes
+B06        -10.1   -30.9          -29.9   -16.6     L:yes R:yes
+B07         -2.4   -17.0          -27.8    +6.7     L:yes R:yes
+B08         -7.7   -23.8          -37.6   +52.2     L:yes R:yes
+B09        -18.7   -16.2          -45.6    -2.6     L:NO  R:yes
+median       -13.7   -30.3          -29.9   -15.7
+
+Stroke-script columns (median over 0..4 s after the cue), group medians:
+Left-hand MI :  C3 -10.5%   C4 -26.1%
+Right-hand MI:  C3 -27.1%   C4 -11.7%
+opposite side drops more (0.5-3.5 s): 16/18 cases
+
+done in 28.9 s. Output: D:\trainsvm\experiments\05_bci_iv_2b\erd_ers_stroke_method

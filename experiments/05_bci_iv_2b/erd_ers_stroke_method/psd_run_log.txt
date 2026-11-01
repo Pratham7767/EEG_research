@@ -1,0 +1,52 @@
+PSD + differentiator, BCI IV 2b  (2026-11-01 21:20)
+Welch 0.5 s Hamming, 50% overlap, nfft 256; baseline -1..0 s, imagery 0..4 s; features 0.5..3.5 s
+
+B01  720 trials  (3.3 s)
+B02  680 trials  (5.6 s)
+B03  720 trials  (8.1 s)
+B04  740 trials  (10.7 s)
+B05  740 trials  (13.2 s)
+B06  720 trials  (16.1 s)
+B07  720 trials  (19.1 s)
+B08  760 trials  (22.1 s)
+B09  720 trials  (24.9 s)
+
+8-30 Hz power change, imagery vs baseline (%)
+subject   Left MI: C3      C4    Right MI: C3      C4
+B01        -11.8   -34.5          -20.4   -12.4
+B02        -11.8   -30.1          -17.2   -21.6
+B03        -13.9   -22.0          -18.0   -13.7
+B04         +2.7   -27.3          -36.1   +31.6
+B05        -20.8   -25.8          -29.9   -10.3
+B06         -6.7   -29.2          -28.1   -16.6
+B07         -2.9   -15.9          -26.3    +5.7
+B08         -7.2   -19.6          -32.1   +47.2
+B09        -15.0   -10.4          -38.3    +3.1
+median       -11.8   -25.8          -28.1   -10.3
+
+Single-trial left/right separation, 0.5-3.5 s after cue, mean over 9 subjects
+(acc_S45 = threshold from sessions 1-3, tested on 4-5; LOSO = threshold from the other 8 subjects)
+
+band         feature               AUC*   acc_S45   min_S45   p<.05  acc_LOSO
+8-30         log C3/C4            0.793     0.735     0.557     9/9     0.708
+mu 8-13      log C3/C4            0.767     0.719     0.537     8/9     0.682
+beta 13-30   log C3/C4            0.742     0.693     0.512     7/9     0.667
+8-30         ERD C3 - ERD C4      0.712     0.678     0.557     9/9     0.652
+mu 8-13      ERD C3 - ERD C4      0.686     0.646     0.529     7/9     0.632
+8-30         C4 power             0.677     0.634     0.522     6/9     0.565
+beta 13-30   ERD C3 - ERD C4      0.664     0.630     0.529     8/9     0.616
+8-30         C3 power             0.651     0.628     0.507     7/9     0.562
+mu 8-13      C3 power             0.636     0.622     0.532     6/9     0.554
+mu 8-13      C4 power             0.664     0.619     0.519     5/9     0.563
+beta 13-30   C4 power             0.648     0.618     0.541     6/9     0.551
+8-30         ERD C4               0.632     0.597     0.506     5/9     0.594
+beta 13-30   C3 power             0.620     0.592     0.471     6/9     0.550
+8-30         ERD C3               0.605     0.584     0.504     6/9     0.571
+mu 8-13      ERD C4               0.611     0.583     0.509     6/9     0.575
+beta 13-30   ERD C4               0.610     0.583     0.507     7/9     0.579
+mu 8-13      ERD C3               0.596     0.567     0.496     4/9     0.566
+beta 13-30   ERD C3               0.579     0.537     0.381     6/9     0.554
+* AUC shown direction-free (0.5 = no separation, 1 = perfect)
+
+Best single feature by mean accuracy on sessions 4-5: log C3/C4, 8-30
+done in 57.8 s
