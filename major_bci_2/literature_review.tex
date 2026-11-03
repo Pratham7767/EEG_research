@@ -1,0 +1,244 @@
+\chapter{Literature Survey}
+
+This chapter looks at the work that other researchers have already done in the areas this
+project touches. It covers wearable EEG devices, publicly available motor imagery
+datasets, the methods used to extract features and classify EEG signals, and the use of
+EEG to measure a person's mental and cognitive state. A short section on decoding speech
+from EEG is also included, since that is the direction this work is expected to move in
+later. The aim of this chapter is to understand what has already been done, what problems
+are still open, and where this project fits in.
+
+%------------------------------------------------------------------
+\section{Wearable EEG Systems}
+%------------------------------------------------------------------
+
+EEG devices have come a long way from the large machines used in hospitals. Today there
+are small, portable EEG headsets that a person can wear while going about normal
+activities. This matters for any brain-computer interface (BCI) that is meant to be used
+outside a lab.
+
+Mullen and colleagues put together a complete wearable system with dry electrodes and
+showed that it could follow brain activity and mental state live, while the person was
+wearing it \cite{mullen2015wearable}. Because no gel is used, the headset is quick to put
+on and stays comfortable for a long time. Their recordings were good enough for practical
+use, although still a little noisier than a gel cap in a laboratory.
+
+Kappel and colleagues went a step further and moved the dry electrodes into the ear
+canal, so that the recorder looks like an ordinary earphone \cite{kappel2019earEEG}. The
+signals they picked up were weaker than with electrodes on the scalp, but the device was
+so unobtrusive that it could be worn through a normal day, which is the kind of comfort a
+practical brain-computer interface needs.
+
+Both of these studies are directly relevant to the hardware used in this project. The GELO
+BCI headset used here is a dry-electrode headphone with only four EEG channels (A1, A2, C3
+and C4) and a single reference at Cz, sampled at 250 Hz. It gains the comfort and quick
+setup reported in these studies, but it also inherits their limitations: fewer channels,
+weaker signals and more noise than a research-grade cap. This trade-off shapes much of the
+work reported in the later chapters.
+
+%------------------------------------------------------------------
+\section{Motor Imagery EEG Datasets}
+\label{sec:mi_datasets}
+%------------------------------------------------------------------
+
+Motor imagery (MI) means imagining a movement without actually making it. When a person
+imagines moving the left or right hand, the activity over the motor cortex changes, and
+these changes can be picked up by electrodes placed at C3 and C4. Building a classifier for
+this needs a good amount of labelled data, which is hard for a student project to collect
+from scratch.
+
+The first reference dataset used in this project comes from Liu and colleagues, who
+released motor imagery recordings from people in the first month after a stroke
+\cite{liu2024mi}. Fifty patients took part, the youngest aged 31 and the oldest 77. Every
+patient did 40 trials, half imagining gripping with the left hand and half with the right,
+which adds up to 2000 trials. A trial lasted 8 s: 2 s of instruction, 4 s of imagery and
+2 s of rest. The recordings were made at 500 Hz with a portable wireless cap using saline
+instead of gel, with 30 EEG electrodes, 2 EOG electrodes and a marker channel, referenced
+to CPz. The authors share both the raw and the cleaned data, together with clinical notes
+on each patient.
+
+This dataset is important for the present work for two reasons. First, it supplies a
+labelled, well-documented set of left and right MI trials that can be used to train a
+classifier, which is the first objective of this project. Second, the paper reports its own
+analysis of the data, including event-related desynchronisation and a set of classification
+results, which gives a clear baseline to compare against. The channel layout is also
+convenient, as C3 and C4 are available in the dataset and are the same two positions
+recorded by the headset used here. The main limitation is that the subjects are stroke
+patients recorded with a 30-channel system, while the data collected in this project comes
+from healthy subjects using only four channels. This difference between the training data
+and the test data turns out to matter a great deal, as the results chapter shows.
+
+A second public dataset was used to fill this gap. Dataset 2b of BCI Competition IV, which
+was released for the competition in 2008 and is called the BCI 2008 dataset in this report,
+was recorded at Graz University of Technology~\cite{leeb2007virtual,
+tangermann2012review}. It contains nine healthy, right-handed people who imagined moving
+the left or the right hand whenever an arrow pointing to that side appeared on a screen.
+Each person came back for five sessions on different days. The first two sessions were
+plain cued imagery without feedback, about 120 trials each, and in the last three, about
+160 trials each, a smiley face on the screen moved left or right according to the
+person's own brain signal. Only three EEG channels were recorded, over C3, Cz and C4, each
+as a bipolar pair of closely spaced electrodes, at 250 Hz with a 0.5--100 Hz band-pass
+filter and a 50 Hz notch filter. Three EOG channels were also recorded, but they are meant
+only for spotting eye movements and not for classification. The dataset has 6520 trials
+in total, half for each hand.
+
+This dataset suits the present work for three reasons. The subjects are healthy, as in
+the recordings made for this project. The sampling rate is the same 250 Hz as the GELO
+headset, and the layout is almost the same, with the two motor cortex electrodes at C3 and
+C4 plus one at Cz. Finally, it comes with a fixed split, three sessions for training and
+two later sessions for testing, so a classifier can be checked on days it has never seen.
+Many methods have been tested on it, and the winning entry of the competition used filter
+bank CSP~\cite{ang2012fbcsp}, which is one of the methods tried in this project.
+
+%------------------------------------------------------------------
+\section{Feature Extraction and Classification for Motor Imagery}
+%------------------------------------------------------------------
+
+Once the data is available, the next problem is turning the raw signal into features and
+training a model on them. This is harder than it sounds, because EEG signals vary a lot
+between people and even between sessions for the same person.
+
+The standard way of looking at motor imagery is through event-related desynchronisation
+(ERD) and event-related synchronisation (ERS). ERD is a drop in power in a given frequency
+band during a task and ERS is a rise in power. For motor imagery, power in the alpha
+(8--15 Hz) and beta (15--30 Hz) bands usually drops over the motor cortex on the side
+opposite to the imagined hand \cite{pfurtscheller1999erd}. The reference dataset paper computes this by filtering C3
+and C4 between 8 and 30 Hz, squaring the signal to get power, averaging across trials and
+comparing against a baseline taken just before the task \cite{liu2024mi}. The same paper
+also benchmarks several classifiers on its own data for the left versus right MI problem,
+using the 8--30 Hz band and a 4 second window after the cue. Common Spatial Pattern with
+Linear Discriminant Analysis (CSP+LDA) \cite{ramoser2000csp} reached about 55.6\%, Filter
+Bank CSP with a Support Vector Machine (FBCSP+SVM) \cite{ang2012fbcsp, cortes1995svm}
+about 57.6\%, a Riemannian approach \cite{barachant2012riemann} about 61.2\%, and the best
+method reported, a temporal window filter bank combined with a Riemannian mean classifier,
+reached 72.21\%. These numbers are a useful reminder that even with 30 channels and clean
+laboratory recordings, binary motor imagery classification is a difficult problem, and that
+accuracies in the 50--70\% range are normal rather than poor.
+
+Beyond CSP and SVM, deep networks are the other big family of methods. A survey by Xu
+and Xia walks through the network types that have been tried on EEG and the usual ways of
+preparing the signal for them \cite{xu2023review}. Its main warning is about data size:
+deep networks learn well only from large amounts of data, and most EEG datasets are small.
+For a project that records its own data from a handful of people, a simple model like an
+SVM is therefore the sensible first choice.
+
+EEG Conformer, proposed by Song and colleagues, mixes two ideas
+\cite{song2023conformer}. Convolution layers look for short local patterns in the signal,
+and an attention stage then relates those patterns to each other over the whole trial. The
+authors also show maps of which parts of the input the network relied on, and they report
+higher accuracy than CSP on the usual motor imagery benchmarks. It is a good candidate for
+later work, once there is enough data and computing power to train it.
+
+Panachakel and Ramakrishnan used transfer learning for imagined speech
+\cite{jerrin2021imagined}. Their network learns first from many people and is then tuned to
+a new person with only a little of that person's data, which shortens the setup for each
+new user. Accuracy still varied clearly from one person to the next, showing that
+differences between people remain a hard problem. The
+same problem appears in this project, where a model trained on one dataset is tested on
+data recorded from a different group of people with a different device.
+
+Su and colleagues built a brain-computer interface for hand rehabilitation after stroke
+that uses two kinds of brain response at once: motor imagery, and the steady response the
+visual cortex gives to a flickering light \cite{su2024hybrid}. Their model keeps updating itself as the patient's signals change over time. Using both signals gave
+higher accuracy than either alone, and patients' hand function improved, which shows that
+an EEG classifier can be of real clinical use.
+
+%------------------------------------------------------------------
+\section{Decoding Speech from EEG}
+%------------------------------------------------------------------
+
+A related line of research tries to work out what a person is saying, or only thinking of
+saying, from EEG alone. This is not part of the current objectives but it is the direction
+this project is expected to extend into, so the main findings are worth noting.
+
+Krishna and colleagues recorded EEG while people spoke and found that a speech recogniser
+could use it, both when the audio was noisy and when there was no audio at all
+\cite{krishna2019nospeech}. This mattered because it meant
+EEG on its own carries enough information about speech intent to be used for recognition.
+The experiments were done in a controlled lab, so how well this holds in noisy everyday
+conditions is still not known. In a follow-up study the same group tried to produce speech sound directly from EEG and
+managed a partial reconstruction of the spoken words \cite{krishna2020eeg}. The method depended on specific tasks and had to be trained
+separately for each person, which makes it hard to use on a new user without starting over.
+
+EEG recorded during both imagined and spoken speech has also been used to classify the
+types of sounds being thought about or said \cite{zhao2015phonological}. This confirmed
+that imagined speech, where no sound is made at all, still leaves a pattern in EEG that can
+be detected, which is the basic assumption behind any silent communication system. On the
+listening side, the auditory EEG decoding challenge for ICASSP 2024 focused on working out
+what a person is listening to from their EEG \cite{bollens2025auditory}. The dataset and the
+evaluation method were released publicly, which helps the wider research community compare
+results fairly.
+
+%------------------------------------------------------------------
+\section{EEG for Cognitive and Mental State Assessment}
+%------------------------------------------------------------------
+
+Apart from decoding what a person intends to do or say, EEG is also widely used to measure
+how a person's mind is working at a given moment. This is the third objective of this
+project, which is to compute a cognitive score from EEG frequency bands.
+
+Bird and colleagues used a low-cost headband and a set of statistical features to sort
+recordings into relaxed, neutral and concentrating states with machine learning
+\cite{bird2018mental}, and found that these states can be told apart with good accuracy. The work looked at states in isolation, however,
+and did not follow how a changing cognitive state affects performance on an actual task.
+
+Jawed and colleagues trained recurrent networks on unprocessed EEG to pick out people who
+learn best from visual material \cite{jawed2024visual}. With 34 participants recorded at
+rest and while learning, their best model, which combined an LSTM with convolution layers,
+was right about 94\% of the time. What is useful here is that the models worked on raw EEG without heavy offline
+cleaning, which shows that real-time assessment from a continuous EEG stream is practical.
+
+For driver drowsiness, Ming and colleagues used deep Q-learning, a reinforcement learning
+method that learns from feedback instead of from fixed class labels
+\cite{ming2021drowsiness}. This is a useful idea because drowsiness builds up gradually and does not
+split neatly into classes. A more conventional system for the same problem used spectral
+entropy and power spectral density as features, which describe how the brain's electrical
+activity is spread across frequency bands, and fed them to boosting classifiers to detect
+signs of fatigue \cite{jiri2025drowsiness}. This second approach is closest to the method
+used in this project, where relative power in the delta, theta, alpha, beta and gamma bands
+is computed from the PSD and then combined into scores. In particular, the stress score used
+here is based on the ratio of relative high-beta power to relative alpha power, and the
+fatigue score on the ratio of combined theta and alpha power to beta power, both of which
+rest on the same band-power relationships these studies rely on. The limitation of such
+systems is that they are tuned for one specific state, so the thresholds and reference
+values have to be worked out again for any new measure.
+
+%------------------------------------------------------------------
+\section{Summary of the Literature Survey}
+%------------------------------------------------------------------
+
+The studies reviewed above map onto the three objectives of this project as follows.
+
+\textbf{Building an EEG database for motor imagery.} Wearable dry-electrode systems,
+including ear-mounted ones, can record usable EEG with a small number of channels and very
+little setup \cite{mullen2015wearable, kappel2019earEEG}, and the open stroke-patient motor
+imagery dataset provides a well-documented left and right hand MI recording protocol that
+can be followed when collecting new data \cite{liu2024mi}. The BCI Competition IV 2b
+dataset adds healthy subjects recorded with only three channels at 250 Hz, which is much
+closer to a small wearable headset \cite{leeb2007virtual}.
+
+\textbf{Designing a motor imagery classifier.} ERD and ERS analysis of C3 and C4 in the
+8--30 Hz band is the accepted way to look at motor imagery, and CSP, filter bank CSP,
+LDA, SVM and Riemannian methods form the standard set of classifiers, with reported
+accuracies for left versus right MI ranging from about 55\% to 72\%
+\cite{liu2024mi}. Deep learning offers further gains \cite{xu2023review,
+song2023conformer}, transfer learning helps when moving between users
+\cite{jerrin2021imagined}, and adaptive models help when a user's signals drift over time
+\cite{su2024hybrid}.
+
+\textbf{Computing a cognitive score from frequency bands.} Relative power in the EEG
+frequency bands, together with PSD and entropy features, can be used to separate mental
+states and to track attention and fatigue \cite{bird2018mental, jawed2024visual,
+ming2021drowsiness, jiri2025drowsiness}.
+
+Three gaps stand out from this review. First, almost all of the motor imagery results
+reported above come from research-grade systems with 20 or more channels, while a practical
+wearable device may have only a few; how much accuracy is lost in that reduction is not
+well documented. Second, models are usually trained and tested on the same dataset and the
+same recording device, so very little is known about what happens when a model trained on
+one dataset is applied to data recorded elsewhere with different hardware. Third, work on
+motor imagery decoding and work on cognitive state monitoring have largely been carried out
+separately, even though both are computed from the same recording. This project addresses
+these three points by recording left and right motor imagery on a four-channel dry
+headset, training classifiers on the public dataset and testing them on the recorded data,
+and computing a cognitive score from the same signal within a single system.

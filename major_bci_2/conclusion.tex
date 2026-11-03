@@ -1,0 +1,70 @@
+\chapter{Conclusion and Future Work}
+
+\section{Conclusion}
+
+This project set out to build an EEG system around a four-channel dry-electrode headset
+that can tell left-hand from right-hand motor imagery and, from the same recording,
+report the mental state of the person as a cognitive score.
+
+The motor imagery analysis was built and checked in three stages. First, the ERD/ERS
+analysis of the published stroke patient dataset was reproduced, which confirmed that the
+processing chain gives the same result as the original paper. Second, the same method was
+applied to all nine healthy subjects of the BCI Competition IV 2b dataset, which matches
+the headset in sampling rate and electrode positions. Here the expected pattern appeared
+clearly: the 8--30 Hz power dropped more over the side of the head opposite to the
+imagined hand in 16 of 18 cases, and subject B04 showed the textbook result, with C4
+falling to about $-50$ per cent during left-hand imagery and C3 to about $-60$ per cent
+during right-hand imagery. Third, the analysis was applied to left and right motor imagery
+recorded with the GELO headset.
+
+The most useful single finding is the C3/C4 power ratio. On the 2b data it was higher for
+the left hand than for the right hand in all nine subjects, and as a single number per
+trial it identified the hand on unseen days with 73.5 per cent accuracy, better than chance
+for every subject and 96.6 per cent for B04. It works better than the power or the ERD of
+either channel on its own because it cancels changes that affect both channels together
+and needs no rest baseline. The best classifiers reached 80.2 per cent when trained on the
+same person and 74.7 per cent on a person never seen in training, using filter bank CSP or
+simple log band power with an SVM and Euclidean alignment. With only two or three channels
+the choice of classifier made very little difference, while Euclidean alignment helped
+every model.
+
+On the data recorded with the GELO headset, the same kind of C3/C4 difference is visible in
+the trials examined, with a power ratio of 9.52 for a left-hand trial and 0.86 for a
+right-hand trial. However, classifiers trained on either public dataset stayed close to
+chance on the recorded data, and across all 72 usable trials the left and right difference
+was much weaker than in the 2b data. Since the same classifier works well on new people in
+2b, the main limit is the recorded data and the way it was collected, and not the
+classifier or the number of channels.
+
+The cognitive assessment part works end to end. The electrode contact settles within a few
+minutes, the usable measurement band of the headset was found to be about 4 to 30 Hz, and
+attention, cognitive load, relaxation, stress and fatigue are computed live and compared
+against each person's own calibration, so that changes in overall signal level do not
+move the scores.
+
+\section{Future Work}
+
+The results point clearly to what should be done next, in order of expected benefit.
+
+\begin{itemize}
+    \item \textbf{A better recording protocol.} New GELO recordings should follow the BCI
+          Competition IV 2b design: left and right trials mixed randomly within one session,
+          cues and markers placed by software at fixed times, a calm fixation period before
+          each cue to act as a true baseline, equal numbers of trials for each hand, and
+          several sessions on different days.
+    \item \textbf{Per-user calibration.} Training on the same person's earlier sessions was
+          worth about 5 percentage points over a model trained on other people, and the
+          C3/C4 threshold differs between people. A short calibration run of cued trials at
+          the start of use is a cheap way to gain this.
+    \item \textbf{Testing the 2b model again on new GELO data.} Once data recorded with the
+          new protocol is available, the 2b model with Euclidean alignment can be applied to
+          it directly, with the 74.7 per cent reached on new 2b subjects as the reference.
+    \item \textbf{Real-time operation on the Raspberry Pi 5.} The C3/C4 ratio and the log
+          band power SVM are very light to compute, so both the motor imagery decision and
+          the cognitive score can run live on the embedded platform described in
+          Chapter 4.
+    \item \textbf{Deep learning and imagined speech.} Models such as convolutional
+          transformers need far more data than is available now. With a larger and cleaner
+          dataset recorded on the headset, they become worth trying, both for motor imagery
+          and for the longer-term aim of decoding imagined words.
+\end{itemize}

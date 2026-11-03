@@ -1,0 +1,386 @@
+%%  Technical Chapters
+
+\chapter{System Overview}
+
+This project builds a system that uses EEG signals recorded from the scalp to do two
+things. The first is to tell whether a person is imagining a movement of the left hand or
+the right hand. The second is to find out the mental condition of the person at that
+moment. Both outputs come from the same recording. The system takes the raw brain signals,
+cleans them, pulls out useful information from them, and then uses a machine learning
+model for the left versus right decision and a set of frequency band calculations for the
+cognitive score. No audio is recorded at any stage.\\
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.60\textwidth]{BDeeg.png}
+    \caption{EEG Based Cognitive Assessment Overview}
+    \label{fig:system_overview}
+\end{figure}
+
+Figure~\ref{fig:system_overview} illustrates the overall architecture of the proposed
+system. The first step is collecting the data. The person wears an EEG headset with
+electrodes placed on the scalp at standard positions. During the recording session the
+person is shown an instruction and is asked to imagine gripping an object with the left
+hand or the right hand, while the EEG signals are being recorded. The task is only
+imagined, so no actual movement is made and no sound is produced. To know which task was
+being performed at each point in the recording, markers are placed in the recording
+software at the start of every trial. These markers are what label the data, and they
+replace the need for any audio reference.
+
+The filtered EEG is then sent to the band analysis stage. Here the signal is divided into
+the standard frequency bands, which are delta, theta, alpha, beta and gamma, to study the
+brain activity. The bands matter for both halves of the system. For motor imagery, the
+alpha and beta bands over the motor cortex are the ones that change when a movement is
+imagined. For the cognitive score, the balance of power between the bands is what
+indicates whether the person is attentive, under load, relaxed, stressed or tired.
+
+The next step is feature extraction, which means taking out useful information from the
+EEG signals. For the motor imagery path, the two motor cortex channels C3 and C4 are
+filtered to the 8--30 Hz range, their power is computed, and the change in power with
+respect to a baseline taken just before the task is calculated. Statistical measures such
+as the mean, median, skewness and kurtosis of each channel are then worked out, along with
+the ratio of power between C3 and C4 and the band power over 8--30 Hz. These values
+together form a set of numbers that represent what the motor cortex was doing during that
+trial. For the cognitive path, the power spectral density is computed and the relative
+power in each band is obtained by dividing the power in that band by the total power.
+
+The machine learning model is trained using the features extracted from the EEG data along
+with the labels that say whether the trial was a left-hand or a right-hand imagination. The
+model looks at the patterns in the features and tries to learn which pattern belongs to
+which side. Once training is done, the model can take a new EEG trial and predict whether
+the person imagined the left or the right hand. In parallel, the relative band powers are
+combined into ratios to produce the cognitive outputs, which are attention, cognitive load,
+relaxation, stress and fatigue.
+
+The output of the system is therefore the predicted side, left or right, along with the
+cognitive score. The predicted side shows which hand the person was imagining, and the
+cognitive score shows how attentive, stressed or tired the person is at that moment. Both
+outputs come from the same EEG recording setup, which keeps the system simple and practical
+to use.
+
+Overall this system takes EEG signals as input, processes them, and uses machine learning
+and frequency band analysis to give two useful outputs. It works with a simple wearable
+headset and needs nothing besides the EEG signal itself, which makes it a practical
+approach for real world use.
+
+%% new chapter
+
+\chapter{System Hardware}
+This chapter describes the hardware components used in the proposed EEG-based cognitive
+assessment system. The components are used to record EEG signals, process the data in real
+time, and display the output through the GUI. This chapter explains the use of the GELO BCI
+headset, Raspberry Pi 5, display unit, and other supporting hardware used for brain signal
+recording and cognitive analysis.
+
+\section{EEG Recorder}
+EEG recorders are used to record the electrical activity of the brain using electrodes
+placed on the scalp. Different EEG systems are available based on factors like signal
+quality, portability, comfort, number of channels, and communication. Depending on the
+application, a suitable EEG recorder system is selected.
+
+There are different types of EEG recorder system:
+
+\subsection{Wet Electrode EEG System}
+
+Wet electrode EEG recorder systems use conductive gel between the scalp and the electrode
+to obtain better signal quality. These EEG recorder systems are mainly used for clinical
+and medical purposes because they provide accurate and stable EEG recordings. In hospitals
+and research laboratories, wet electrode EEG recorder systems commonly follow the standard
+10--20 electrode placement system \cite{jasper1958tentwenty} for recording brain activity
+from different regions of the scalp.
+
+However, wet electrode EEG recorder systems are not suitable for the proposed project.
+Before every recording session, conductive gel has to be applied properly, which increases
+the setup time. The system also becomes less comfortable during long-duration usage. In
+addition, regular cleaning and maintenance are required after recording. Since the proposed
+project mainly focuses on wearable and real-time applications, wet electrode EEG recorder
+systems are not very practical.
+
+\subsection{Dry Electrode EEG System}
+
+Dry electrode EEG recorder systems record EEG signals without using conductive gel. These
+systems are easier to use and more comfortable compared to wet electrode systems. Dry
+electrode EEG recorder systems are widely used in wearable Brain Computer Interface (BCI)
+applications because they support faster setup and better portability.
+
+Different types of dry electrode EEG recorder systems are available, such as EEG headbands
+and EEG headphones. EEG headbands are lightweight and easy to wear, making them suitable
+for continuous monitoring applications. EEG headphones provide portability and better
+comfort. For this project, a wearable dry electrode EEG headset was preferred because it is
+more comfortable, portable, and easy to use. Based on these requirements, the GELO BCI
+headset was selected for recording EEG signals.
+
+\subsection{GELO BCI Headset}
+The GELO BCI Digital EEG Recorder Headphones shown in Figure~\ref{fig:gelo} serve as the
+primary EEG signal acquisition unit of the proposed system. The device combines a wearable
+headphone with integrated dry electrodes, enabling comfortable and non-invasive brain
+signal recording without the need for conductive gel. It consists of 4 EEG channels, namely
+A1, A2, C3 and C4, together with a reference electrode placed at Cz and two ground
+electrodes. The placement of the electrodes is based on the standard 10--20 EEG electrode
+system \cite{gelo2026manual}.
+
+The channel layout is the main reason this device suits the project. C3 and C4 sit directly
+over the left and right motor cortex, which are the two positions whose activity changes
+when a hand movement is imagined, so they carry the information needed for the left versus
+right decision. A1 and A2 sit at the ears and are used as the second terminal of each pair,
+so that the system measures the difference A1--C3 and A2--C4 rather than an absolute
+voltage. Taking a difference in this way cancels out noise that is common to both
+electrodes. The same four channels also supply the frequency band powers used for the
+cognitive score.
+
+The headset operates at a sampling frequency of 250 Hz, which is high enough for the
+0.5--35 Hz range of interest in this work. The device supports Bluetooth BLE 5.0
+connectivity for wireless real-time data transmission to the companion computer, ensuring
+portability and ease of use. The device also includes stereo speakers and a microphone as
+part of its headphone function. These are not used in the present work, since no audio is
+recorded, but they are available if an audio cue needs to be played to the subject during a
+trial. These features make the GELO BCI headset well suited to the EEG-based motor imagery
+classification and cognitive score assessment carried out in the proposed system.
+
+\subsection{Features of GELO BCI Headset}
+
+\begin{itemize}
+    \item Audio headphone with integrated neuro-headset design
+    \item 4 EEG channels: A1, A2, C3, and C4 with REF--CZ reference electrode
+    \item Dry gilded PogoPin sensor material
+    \item Sampling frequency of 250\,Hz
+    \item Bluetooth Low Energy (BLE 5.0) communication interface
+    \item Supports bipolar read mode
+    \item Reproducible frequency range: 20--20000\,Hz
+    \item Dual 40\,mm speakers
+    \item Bluetooth profiles: HFP, HSP, A2DP, and VCRCP
+\end{itemize}
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.65\linewidth]{Pic1.jpeg}
+    \caption{GELO BCI Headset}
+    \label{fig:gelo}
+\end{figure}
+
+\newpage
+
+\section{Raspberry Pi 5}
+
+The Raspberry Pi 5 shown in Figure~\ref{fig:rpi5} serves as the main processing unit of the
+proposed project. It is used to receive EEG signals from the GELO BCI headset through
+Bluetooth and to perform feature extraction and machine learning classification. It also
+handles cognitive score calculation and GUI-based visualization of EEG signals and
+predicted outputs.
+
+The board is powered by a Broadcom BCM2712 quad-core 64-bit ARM Cortex-A76 processor
+clocked at 2.4\,GHz \cite{rpi5brief}, which provides sufficient computational performance for real-time EEG
+analysis applications. The Raspberry Pi 5 supports interfaces such as GPIO, I2C, SPI, UART,
+USB and PCIe, allowing easy integration with EEG devices, display modules and other
+peripherals. It also supports dual micro-HDMI output for high-resolution display and
+real-time monitoring.
+
+In addition, the board supports dual-band Wi-Fi, Bluetooth 5.0/BLE, Gigabit Ethernet and
+USB 3.0 connectivity, making wireless communication and peripheral interfacing easier.
+These features make the Raspberry Pi 5 suitable for the proposed EEG-based motor imagery
+classification and cognitive assessment system.
+
+\begin{itemize}
+    \item 2.4\,GHz quad-core ARM Cortex-A76 64-bit processor
+    \item Available in 4\,GB or 8\,GB LPDDR4X RAM variants
+    \item Dual-band 2.4\,GHz/5\,GHz Wi-Fi and Bluetooth 5.0 / BLE
+    \item Gigabit Ethernet and USB 3.0 support
+    \item Dual micro-HDMI ports with dual 4K display support
+    \item 40-pin GPIO header for peripheral interfacing
+    \item PCIe 2.0 x1 support for high-speed peripherals
+    \item Real-time clock (RTC) and onboard power button
+    \item Low power consumption suitable for continuous embedded operation
+\end{itemize}
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.65\linewidth]{pi.jpg}
+    \caption{Raspberry Pi 5}
+    \label{fig:rpi5}
+\end{figure}
+
+\newpage
+
+\section{Aluminum Heat Sink Case with Dual Fans for Raspberry Pi 5}
+
+The Aluminum Heat Sink Case with Dual Fans shown in Figure~\ref{fig:heatsink} is used to
+provide efficient thermal management for the Raspberry Pi 5. Due to the computational load
+involved in continuous EEG processing and classification, proper heat dissipation is
+essential to maintain stable performance and prevent thermal throttling.
+
+This case is constructed using CNC-machined aluminum, which acts as a passive heat sink.
+Additionally, it includes two high-speed cooling fans that provide active airflow, ensuring
+the temperature of the Raspberry Pi remains within safe operating limits. The case also
+provides physical protection and structural rigidity, which is useful because the unit is
+meant to be carried and used alongside a wearable headset rather than kept in a fixed
+laboratory setup.
+
+\subsection{Features of Aluminum Heat Sink}
+
+\begin{itemize}
+    \item Aluminum alloy body for superior passive heat dissipation
+    \item Dual cooling fans for improved active airflow
+    \item Reduced thermal throttling under heavy processing loads
+    \item Protects Raspberry Pi from dust and physical damage
+\end{itemize}
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.55\linewidth]{sfs_03_2.jpg}
+    \caption{Aluminum Heat Sink Case with Dual Fans for Raspberry Pi 5}
+    \label{fig:heatsink}
+\end{figure}
+
+\section{Waveshare 7-Inch LCD Display}
+
+The Waveshare HDMI Display \cite{waveshare7inch} shown in Figure~\ref{fig:lcd} is used to
+provide the visual user interface for the proposed EEG-based cognitive assessment system. The display allows users
+to interact with the graphical interface, visualize real-time EEG waveforms, follow the
+left and right motor imagery cues during a recording session, and observe outputs such as
+the predicted side and the cognitive score. A clear and responsive display is essential for
+effective visualization of EEG signal variations, system status and real-time analysis
+results.
+
+The display supports HDMI input and is fully compatible with the Raspberry Pi 5, making it
+suitable for embedded real-time GUI applications. Its capacitive touch support enables
+smooth user interaction for controlling recording, calibration and signal visualization.
+The compact and portable design makes it suitable for practical deployment, live
+demonstrations and continuous monitoring applications in EEG-based human--machine
+interaction systems.
+
+\subsection{Features of Waveshare LCD Display}
+\begin{itemize}
+    \item 7-inch LCD screen with clear and sharp display output
+    \item HDMI interface compatible with Raspberry Pi 5
+    \item Supports Raspberry Pi OS and other operating systems
+    \item Compact and lightweight design for embedded applications
+    \item Enables real-time visual feedback and user interaction
+\end{itemize}
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.55\linewidth]{Exterior-Size.jpg}
+    \caption{Waveshare 7-Inch LCD Display}
+    \label{fig:lcd}
+\end{figure}
+
+\chapter{System Software}
+
+This chapter explains the software setup used to develop the proposed EEG-based motor
+imagery classification and cognitive assessment system. It includes the software
+environment, the GUI software, the EEG signal collection process, and the libraries used
+for signal processing, visualization, machine learning and cognitive score calculation. The
+system combines real-time EEG data collection using the Capsule GUI with Python-based
+preprocessing and classification methods to perform EEG signal analysis in a reliable way.
+
+\section{Software Requirements}
+
+The proposed system uses the Capsule GUI software for real-time EEG signal acquisition,
+electrode impedance checking, calibration, signal display and marker placement. All
+recording and processing reported in this work is carried out on a Windows 11 computer. The
+Raspberry Pi 5 described in the previous chapter is the intended deployment platform, so
+that the complete system can later run as a standalone unit, but the results presented in
+this report were obtained on the Windows setup. The software requirements below list the
+tools, programming environments and libraries needed to develop and run the system.
+
+\begin{itemize}
+    \item \textbf{Operating System:} Windows 11 for recording and analysis; Raspberry Pi OS
+          for the planned embedded deployment
+    \item \textbf{Programming Language:} Python 3.x
+    \item \textbf{GUI Software:} Capsule software for EEG device connection, impedance
+          check, calibration, recording and marker placement
+    \item \textbf{EEG Device Support:} GELO BCI Bluetooth BLE 5.0 communication
+    \item \textbf{Additional Tool:} MATLAB, used for the event-related desynchronisation
+          and synchronisation analysis of the reference dataset and for generating the
+          corresponding plots
+    \item \textbf{Required Libraries and Tools:}
+    \begin{itemize}
+        \item NumPy -- Used for numerical computation on arrays of EEG samples, adding up
+              spectrum bins into bands, and computing ratios
+        \item SciPy -- Used for Butterworth filtering, FFT, Welch power spectral density
+              estimation and spectral feature extraction from the raw EEG
+        \item Pandas -- Used for structured EEG dataset management, trial labelling and
+              handling of the converted CSV files
+        \item h5py -- Used to read the recorded \texttt{.h5} session files so they can be
+              converted to CSV for further analysis
+        \item MNE-Python \cite{gramfort2013mne} -- Used for EEG preprocessing, channel
+              handling and segmenting the continuous recording into epochs around each
+              marker
+        \item Matplotlib -- Used for the power spectral density plots, ERD curves,
+              frequency band bars and the figures presented in this report
+        \item PyQtGraph -- Used for the live EEG trace, where the plot has to refresh
+              continuously as new samples arrive
+        \item Scikit-learn \cite{pedregosa2011sklearn} -- Used for Support Vector Machine
+              based classification of left versus right motor imagery, along with feature
+              scaling and accuracy evaluation
+        \item CustomTkinter -- Used to build the application interface, including the
+              sidebar, cards, buttons and dialogs
+        \item PyTorch (optional) -- Kept as an option for deep learning models in future
+              work
+    \end{itemize}
+\end{itemize}
+
+Matplotlib and PyQtGraph are both used because they serve different purposes. Matplotlib
+produces the static figures used for analysis and reporting, while PyQtGraph is faster at
+redrawing and is therefore used for the live signal display during a recording session.
+
+These requirements ensure reliable functioning of the EEG acquisition, visualization,
+classification and cognitive scoring parts of the system.
+
+\vspace{0.5cm}
+
+\section{Flowchart}
+The system shown in Figure~\ref{fig:Flowchart} starts with the person putting on the EEG
+headset and the headset being paired with the computer over Bluetooth. The resistance of
+each of the four electrodes is then checked, since a poor contact makes the rest of the
+recording useless. Two short calibration steps follow. In the first, the subject keeps the
+eyes closed for 30 seconds so that the individual alpha peak frequency can be found, as
+alpha activity is strongest with the eyes closed. In the second, the subject looks at a
+fixed point for 30 seconds so that the median power in each frequency band can be stored
+as a baseline. Later readings are compared against this baseline rather than against fixed
+values, which makes the scores specific to that person.
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=1\linewidth]{flowchart_1.png}
+    \caption{Flowchart of EEG based Cognitive Assessment Model}
+    \label{fig:Flowchart}
+\end{figure}
+\newpage
+
+\FloatBarrier
+
+Once calibration is complete, the recording begins and the subject performs the motor
+imagery trials. A marker is placed at the start of each trial so that every segment of the
+recording is tied to a known label, either left-hand or right-hand imagination. The session
+is then saved in \texttt{.h5} format and converted to CSV using a Python script for further
+analysis. No audio is recorded at any point.
+
+If the signal is too noisy or unclear, the recording is done again from the beginning. Only
+when the signal quality is good enough does the system move forward. After passing the
+quality check, the pipeline splits into two separate paths that run independently.
+
+The first path handles cognitive assessment. Here the EEG signal is broken down into the
+five frequency bands, which are delta, theta, alpha, beta and gamma. The power of each band
+is calculated and divided by the total power to give its relative power, which removes the
+effect of the overall signal level changing as electrode contact improves or worsens. These
+relative powers are then combined into ratios to give the cognitive outputs. Attention,
+cognitive load and relaxation are read from the device SDK, while stress is obtained from
+the ratio of relative high-beta power to relative alpha power, and fatigue from the ratio
+of combined theta and alpha power to beta power. Each ratio is compared against the
+person's own reference value and mapped onto a score between 0 and 100, so the result tells
+how mentally active or tired the person is at that moment.
+
+The second path handles motor imagery classification. In this path the C3 and C4 channels
+are taken out and filtered to the 8--30 Hz band, a fixed window of 4 seconds is cut from
+the start of each imagination, and the power and the change in power relative to the
+baseline are computed. Features such as the mean, median, skewness and kurtosis of each
+channel, the ratio of power between C3 and C4, and the band power over 8--30 Hz are then
+extracted. These features are used to train a Support Vector Machine. After training, the
+model accuracy is checked. If the accuracy is not satisfactory, the process goes back to
+the feature extraction stage, the feature set or the kernel is adjusted, and the model is
+retrained. This loop continues until the accuracy reaches an acceptable level. Once the
+accuracy is good, the model is used to predict left or right from new EEG recordings.
+
+Both paths finish at the end node, giving two outputs from a single EEG recording setup,
+which are the cognitive score and the predicted side.

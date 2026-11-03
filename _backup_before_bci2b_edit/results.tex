@@ -1,0 +1,454 @@
+\chapter{Results}
+
+This chapter presents the experimental results obtained from the proposed EEG-based
+system. The work has two parts and the results follow the same split. The first part deals
+with motor imagery, where the aim is to find out whether EEG recorded from a four-channel
+dry headset carries enough information to tell a left-hand imagination apart from a
+right-hand one. The second part deals with cognitive assessment, where the aim is to
+compute attention, cognitive load, relaxation, stress and fatigue from the frequency bands
+of the same signal. Results are reported in the order the work was carried out, starting
+with the reproduction of the reference dataset analysis, then the analysis of the data
+recorded in this project, then the classifier, and finally the cognitive scoring system.
+
+\section{Evaluation Aspects}
+
+For the motor imagery part, the EEG signals recorded during imagined left-hand and
+right-hand grasps are compared in the time domain, through event-related desynchronisation
+and synchronisation (ERD/ERS), and through power spectral density (PSD). These analyses
+check whether the two classes show any consistent difference that a classifier can use. For
+the cognitive part, the relative power in each frequency band is tracked over a session and
+converted into scores, and the stability of the recording itself is checked through the
+electrode impedance.
+
+\subsection{Cases of Comparison}
+
+The following comparison cases were studied during the experimental analysis:
+
+\begin{enumerate}
+    \item ERD/ERS of the reference dataset, reproduced to validate the analysis method
+    \item ERD/ERS of the data recorded in this project, compared against the reference
+    \item PSD of C3 and C4 for imagined left versus imagined right
+    \item Classification accuracy of different SVM feature sets and kernels
+    \item Band power and cognitive scores recorded over a complete session
+\end{enumerate}
+
+\subsection{Parameters Under Study}
+
+The main parameters considered in this analysis are:
+
+\begin{enumerate}
+    \item EEG channels: C3, C4, A1 and A2, with C3 and C4 as the motor cortex pair
+    \item Motor imagery classes: imagined left-hand grasp and imagined right-hand grasp
+    \item Frequency range: 8--30 Hz for motor imagery, 1--30 Hz for cognitive scoring
+    \item Features: band power, C3/C4 power ratio, mean, median, skewness and kurtosis
+    \item Cognitive outputs: attention, cognitive load, relaxation, stress and fatigue
+\end{enumerate}
+
+\section{Experimental Setup}
+
+The experiment was carried out using the GELO BCI headset with four EEG channels and one
+reference electrode, sampling at 250 Hz. The acquisition was done through the Capsule GUI,
+shown in Figure~\ref{fig:gui_acquisition}. Before every session the headset was paired over
+Bluetooth, the electrode resistances were checked, and the two calibration steps described
+in Chapter 5 were performed.
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.85\linewidth]{gui_acquisition.jpg}
+    \caption{EEG signal acquisition using the Capsule GUI}
+    \label{fig:gui_acquisition}
+\end{figure}
+
+During each recording session the subject was seated comfortably and asked to imagine
+gripping an object with the left hand or the right hand when prompted. The movement was
+only imagined, so no actual movement was made. Each imagination was marked in real time
+using a marker, which was recorded alongside the EEG so that the start and end of every
+trial could be identified later. Each recorded file contains five marked repetitions of one
+class. The session was saved in \texttt{.h5} format and converted to CSV for processing.
+
+For post-recording analysis the CSV files were loaded and sorted by class based on their
+filenames. The marker column was used to extract the active imagination windows as
+individual trials. Since the shortest trial across the recordings was close to four
+seconds, a fixed window of four seconds from the onset of each imagination was used so that
+every trial contributes the same number of samples. The signal supplied by the device is
+already filtered, so no further filtering was applied before the feature calculation except
+the 8--30 Hz band limiting used for the ERD and PSD analysis. PSD was estimated using
+Welch's method \cite{welch1967} with a window size of 256 samples at $F_s = 250$ Hz. Out of all the
+recordings made, 50 right-hand trials and 22 left-hand trials were found usable, the rest
+being discarded because of poor electrode contact or movement during the trial.
+
+\FloatBarrier
+
+\section{Observed Results}
+
+\subsection{Reproduction of the Reference Dataset Analysis}
+
+Before working on the recorded data, the ERD/ERS analysis of the reference
+dataset~\cite{liu2024mi} was reproduced. This was done to confirm that the analysis method
+used in this project gives the same result as the published work before it is applied to
+new data. Event-related desynchronisation refers to a drop in EEG power in a given
+frequency band during a task, and event-related synchronisation refers to a rise
+\cite{pfurtscheller1999erd}. For motor
+imagery, power in the 8--30 Hz range is expected to fall over the hemisphere opposite to
+the imagined hand.
+
+The C3 and C4 signals were extracted, filtered between 8 and 30 Hz using a second-order
+zero-phase Butterworth filter, squared to obtain power, averaged across trials, and
+smoothed. The change was computed as
+
+\begin{equation}
+\mathrm{ERD/ERS}~(\%) = \frac{X - M}{M} \times 100
+\end{equation}
+
+where $X$ is the power at a given instant and $M$ is the average power during the one
+second preparation period before the task. Figure~\ref{fig:erd_paper} shows the result
+obtained for subject 8 of the dataset. During left-hand imagery the C4 trace separates
+clearly from C3 and falls through the middle of the trial, which is the expected
+contralateral response. During right-hand imagery the two traces stay much closer together.
+This matches the behaviour reported in the dataset paper and confirms that the processing
+chain is correct.
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.45\linewidth]{erd_paper.png}
+    \caption[ERD/ERS of C3 and C4 for subject 8 of the reference dataset]%
+            {ERD/ERS of C3 and C4 for subject 8 of the reference dataset~\cite{liu2024mi},
+             reproduced using the analysis method of this project}
+    \label{fig:erd_paper}
+\end{figure}
+
+\FloatBarrier
+
+\subsection{ERD/ERS of the Recorded Data}
+
+The same analysis was then applied to the data recorded with the GELO headset.
+Figure~\ref{fig:erd_ours} shows the result for one subject over the four second imagination
+window.
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.95\linewidth]{erd_ours.jpg}
+    \caption{ERD/ERS of C3 and C4 for the data recorded in this project, 8--30 Hz,
+             $F_s = 250$ Hz}
+    \label{fig:erd_ours}
+\end{figure}
+
+Two things can be seen from this figure. The first is that the two classes do separate. For
+left-hand imagery the C3 trace stays above C4 for most of the window, reaching 20 to 40 per
+cent, while for right-hand imagery the order reverses and C4 stays above C3, with both
+traces remaining within roughly $\pm 15$ per cent. The sign of the difference between the
+two channels therefore flips between the two classes, which is the property a classifier
+can make use of.
+
+The second is that the separation does not take the same form as in the reference dataset.
+In the reference recording the contralateral channel falls below the baseline, giving a
+clear desynchronisation, whereas in the recorded data both channels mostly rise above the
+baseline and the difference between them is what carries the class information. There are
+two likely reasons for this. The baseline period in the recorded sessions is taken from the
+seconds immediately before the marker, during which the subject is already preparing for
+the task, so the reference power is not a true rest level. In addition, the four-channel dry
+headset picks up more muscle and movement artefact than the 30-channel saline system used
+for the reference dataset, and these artefacts raise the power in the 8--30 Hz band. The
+result is still usable, but it means the absolute ERD values from this setup should not be
+compared directly against published values.
+
+\FloatBarrier
+
+\subsection{Power Spectral Density for Left and Right Imagery}
+
+The PSD of the two motor cortex channels was computed for each trial.
+Figure~\ref{fig:psd_left} shows a left-hand trial and Figure~\ref{fig:psd_right} a
+right-hand trial from the same subject. In both figures the upper two plots show the two
+channels separately and the lower plot overlays them, with the spectral peak marked.
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.85\linewidth]{psd_left_mi.png}
+    \caption{Power spectral density of C3 and C4 for an imagined left-hand grasp}
+    \label{fig:psd_left}
+\end{figure}
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.85\linewidth]{psd_right_mi.png}
+    \caption{Power spectral density of C3 and C4 for an imagined right-hand grasp}
+    \label{fig:psd_right}
+\end{figure}
+
+\FloatBarrier
+
+The difference between the two cases is clearest in the overlay plots. For the left-hand
+trial the C3 curve sits roughly 10 dB above the C4 curve across most of the low frequency
+range, giving a C3 to C4 power ratio of 9.52. For the right-hand trial the two curves lie
+almost on top of each other, with a ratio of 0.86. The spectral peaks are close together in
+both cases, at 5.50 Hz and 7.00 Hz for the left trial and 6.00 Hz and 6.50 Hz for the right
+trial, which shows that the peak frequency itself does not separate the classes. It is the
+balance of power between the two hemispheres, and not the shape of the spectrum, that
+carries the useful information. This is the reason the logarithm of the C3 to C4 power
+ratio was included as a feature for the classifier.
+
+Both figures also show that the signal falls away sharply beyond about 45 Hz. This is the
+effect of the filtering applied inside the device, and it is why the analysis in this work
+is restricted to the 8--30 Hz range for motor imagery.
+
+\FloatBarrier
+
+\subsection{Classification Results}
+
+Support Vector Machine classifiers were trained using the reference
+dataset~\cite{liu2024mi} as training data and the data recorded in this project as test
+data. Three feature sets were tried, each with both a linear and a radial basis function
+kernel, and each using absolute power as well as ERD power:
+
+\begin{itemize}
+    \item \textbf{SVM-A:} mean, median, skewness and kurtosis of C3 and C4 (8 features)
+    \item \textbf{SVM-B:} the above, plus $\log_{10}(P_{C3}/P_{C4})$ and the Welch band
+          power over 8--30 Hz (9 features)
+    \item \textbf{SVM-C:} the C3 to C4 power ratio alone (1 feature)
+\end{itemize}
+
+The accuracies obtained are summarised in Table~\ref{tab:svm_accuracy}.
+
+\begin{table}[h]
+\centering
+\caption{Classification accuracy of the trained SVM models on the recorded data}
+\label{tab:svm_accuracy}
+\begin{tabular}{|l|l|c|c|}
+\hline
+\textbf{Model} & \textbf{Features} & \textbf{Absolute power} & \textbf{ERD power} \\
+\hline
+SVM-A & Mean, median, skewness, kurtosis of C3 and C4 & 53.9\% & 53.1\% \\
+\hline
+SVM-B & SVM-A features $+$ C3/C4 PSD ratio & 53.7\% & 53.5\% \\
+\hline
+SVM-C & C3/C4 PSD ratio only & 50.2\% & 51.4\% \\
+\hline
+\end{tabular}
+\end{table}
+
+All six combinations give accuracies between 50 and 54 per cent, which is close to what
+would be obtained by guessing on a two-class problem. Adding the power ratio to the
+statistical features in SVM-B did not improve the result, and using the ratio on its own in
+SVM-C performed worst. Using ERD power instead of absolute power made very little
+difference either way.
+
+This result should be read together with the benchmarks reported for the reference dataset
+itself, where CSP with LDA reached 55.6 per cent, filter bank CSP with an SVM reached 57.6
+per cent and the best reported method reached 72.21 per cent, all using 30 channels on data
+from the same recording system~\cite{liu2024mi}. Against that background, the figures in
+Table~\ref{tab:svm_accuracy} are not surprising. Two difficulties combine here. The first
+is that the model is trained on one recording system and tested on another, so the feature
+distributions do not match: the training data comes from stroke patients recorded with 30
+saline electrodes at 500 Hz, while the test data comes from healthy subjects recorded with
+four dry electrodes at 250 Hz. The second is that only two channels are available for the
+spatial information, so spatial filtering methods such as CSP \cite{ramoser2000csp}, which are what give the
+published methods most of their accuracy, cannot be applied at all. The earlier ERD and PSD
+results show that a difference between the classes does exist in the recorded data, so the
+limitation lies in the training strategy and the number of channels rather than in the data
+being empty of information.
+
+\FloatBarrier
+
+\section{Cognitive Assessment Results}
+
+The second part of the system computes a cognitive score from the same recording. Results
+for this part are reported from a complete monitoring session.
+
+\subsection{Signal Quality and Filtering}
+
+Since the whole cognitive score depends on band power, the quality of the contact between
+the electrodes and the skin matters a great deal. Figure~\ref{fig:impedance} shows how the
+resistance of the four electrodes changed over the first six minutes after the headset was
+put on.
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\linewidth]{electrode_impedance.png}
+    \caption{Electrode resistance of the four channels after connecting the headset}
+    \label{fig:impedance}
+\end{figure}
+
+All four electrodes start between 250 and 500 k$\Omega$ and settle to between 70 and 110
+k$\Omega$ within about four minutes, which is well inside the usable range. C4 settles
+highest and takes longest, which is consistent with it being the channel that gave the
+noisiest motor imagery traces. The figure also shows why the session is not started
+immediately: calibration is performed at around one minute and the session begins at about
+one and a half minutes, by which time the contact has largely stabilised.
+
+Two filters are applied to the continuous signal before the band powers are computed. Their
+responses are shown in Figure~\ref{fig:filter}. A 0.5 Hz high-pass filter removes the slow
+drift caused by sweat and small movements of the electrodes while leaving the delta band
+intact, and a 50 Hz notch filter removes mains interference. Both filters process the
+signal block by block while keeping their internal state, so that no discontinuity is
+introduced at the block boundaries.
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\linewidth]{filter_response.png}
+    \caption{Frequency response of the 0.5 Hz high-pass and 50 Hz notch filters}
+    \label{fig:filter}
+\end{figure}
+
+\FloatBarrier
+
+\subsection{Usable Frequency Range}
+
+Figure~\ref{fig:bandpower} shows how much of the original amplitude survives at each
+frequency once the device filtering and the filters above are taken together.
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\linewidth]{normalized_band_power.png}
+    \caption{Fraction of the original amplitude retained across frequency bands}
+    \label{fig:bandpower}
+\end{figure}
+
+The 7--13 Hz and 13--30 Hz ranges pass almost unchanged, at 1.00 and 0.96, and the 4--7 Hz
+range is retained at 0.71. Below 4 Hz the response falls away sharply, to 0.14 in the 3--4
+Hz range and effectively to zero below 2 Hz, and above 35 Hz it falls away in the same way.
+The practical consequence is that the delta band cannot be measured reliably with this
+device and the gamma band is only partly available, so the effective measurement range for
+cognitive scoring is about 4 to 30 Hz. The scores used in this work are therefore built
+from theta, alpha and beta, which all lie inside that range.
+
+\subsection{Stress and Fatigue Reference Levels}
+
+Stress is estimated from the arousal ratio, which is the relative high-beta power in the
+20--30 Hz range divided by the relative alpha power \cite{gelo2026manual}. When a person
+becomes tense, beta
+activity rises and alpha activity falls, so this ratio increases.
+Figure~\ref{fig:arousal} shows how the ratio behaved over one session.
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\linewidth]{arousal_ratio.png}
+    \caption{Arousal ratio over a session, with the rest and work reference levels marked}
+    \label{fig:arousal}
+\end{figure}
+
+During the eyes-open baseline the ratio stays near 0.5, and a rest reference of 0.58 is
+established from this period. Once work begins the ratio rises and moves between about 0.75
+and 1.70 for the rest of the session. A work reference of 0.80 is taken from the first two
+minutes of work, which are deliberately excluded from the stress calculation so that the
+settling-in period is not reported as stress. The score itself is obtained by comparing the
+current ratio against this reference,
+
+\begin{equation}
+\mathrm{Score} = 50 + 50 \tanh \left( \log_2 \frac{\mathrm{ratio}}{\mathrm{reference}} \right)
+\end{equation}
+
+which maps the ratio onto a 0 to 100 scale, with 50 meaning the person is at their own
+reference level. The displayed value is the median over the last 30 seconds, so that a
+single noisy block does not move the score. Fatigue is computed in the same way from the
+ratio of combined theta and alpha power to beta power.
+
+\FloatBarrier
+
+\subsection{Complete Session Output}
+
+Figure~\ref{fig:gui_cognitive} shows the interface at the end of a monitoring session, with
+all the outputs computed from the single four-channel recording.
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=\linewidth]{gui_cognitive_score.png}
+    \caption{Cognitive score interface showing the session output}
+    \label{fig:gui_cognitive}
+\end{figure}
+
+At the instant captured, attention is 91 and cognitive load is 87, both reported as high,
+while relaxation is 23. Stress and fatigue are shown as not yet available, since both
+require the opening period of the session to pass before a reference can be established.
+The session plot in the middle shows how attention and cognitive load changed over the
+minute of recording. The two do not move together throughout: around the half minute mark
+cognitive load drops to near 10 while attention stays above 40, and both then climb back
+together towards the end. This is useful because it shows the two measures are not simply
+reporting the same quantity under different names.
+
+The brain wave panel on the right shows the change in each band relative to the resting
+baseline. Delta is down 92 per cent, theta down 83 per cent, alpha down 69 per cent, beta
+down 50 per cent and gamma down 6 per cent. The pattern is consistent with an alert,
+engaged state, since the slow bands associated with drowsiness are suppressed much more
+than the faster bands associated with active thinking. The delta figure should not be read
+too closely, as Figure~\ref{fig:bandpower} shows that very little of the delta band survives
+the filtering on this device.
+
+The sidebar also shows that the session follows a fixed sequence of setup, connection,
+signal check, calibration, baseline and then the session itself, and the signal quality
+indicator stayed green throughout, confirming that the contact held for the full recording.
+
+\FloatBarrier
+
+\section{Reason for the Observed Variations}
+
+The differences seen between the two motor imagery classes come from the way the motor
+cortex is organised. Imagining a movement of one hand changes the activity over the
+opposite hemisphere, so the balance of power between C3 and C4 shifts depending on which
+hand is imagined. This is what both the ERD traces in Figure~\ref{fig:erd_ours} and the
+power ratios in Figures~\ref{fig:psd_left} and~\ref{fig:psd_right} show, and it is the only
+property of the signal that separated the two classes reliably in this work.
+
+The difference between the recorded data and the reference dataset has two main causes. The
+headset used here has four dry electrodes while the reference system had thirty saline
+electrodes, so both the signal quality and the amount of spatial information available are
+lower. The baseline used for the ERD calculation is also taken from the moments just before
+the marker, when the subject is already preparing for the task, so it does not represent a
+true rest level and the computed percentages are shifted upward as a result.
+
+The low classification accuracy follows from the same two causes, together with the decision
+to train on one dataset and test on another. The subjects differ, the recording hardware
+differs, the sampling rate differs and the number of channels differs, so features computed
+on the training set do not fall in the same range as those computed on the test set. The
+small amount of recorded data, 50 right-hand and 22 left-hand usable trials, also means the
+two classes are unbalanced, which pushes a classifier towards the majority class and keeps
+the accuracy near the chance level.
+
+For the cognitive scoring, the variation between sessions is handled by referencing
+everything to the person's own calibration. Because the scores are computed from relative
+band powers and compared against a baseline recorded at the start of each session, a change
+in overall signal level caused by electrode contact improving or worsening does not by
+itself change the score.
+
+\section{Summary of Analysis}
+
+The results show that the EEG recorded from a four-channel dry headset does carry
+information about which hand is being imagined. Both the ERD traces and the power spectral
+density plots show a consistent difference between the two classes, with the C3 to C4 power
+ratio reaching 9.52 for a left-hand trial and 0.86 for a right-hand trial on the same
+subject. The direction of the difference between the two channels reverses between the
+classes, which is the behaviour expected from the organisation of the motor cortex.
+
+The classifiers trained so far do not convert this difference into useful accuracy. All six
+combinations of feature set and kernel gave between 50 and 54 per cent on a two-class
+problem. Since the published benchmarks on the reference dataset reach only 55 to 72 per
+cent using thirty channels and matched training and test conditions, the result is in line
+with the difficulty of the problem, but it confirms that training on a public dataset and
+testing on data from a different device is not a workable strategy. The next step is to
+record a larger and better balanced set of trials on the headset itself and to train and
+test within that data, rather than across the two sources.
+
+The cognitive assessment part of the system is working end to end. Electrode impedance
+settles into the usable range within a few minutes, the filtering gives a reliable
+measurement band of roughly 4 to 30 Hz, and attention, cognitive load, relaxation, stress
+and fatigue are computed from the band powers and displayed live against the person's own
+calibrated reference. The session output in Figure~\ref{fig:gui_cognitive} shows attention
+and cognitive load varying independently over a recording, which indicates that the scores
+are responding to the signal rather than tracking a single underlying quantity.
+
+\section{Work carried out so far}
+
+The work completed so far covers the following stages. A review of existing research was
+carried out on EEG signal processing, motor imagery decoding, frequency band analysis and
+machine learning methods for EEG, and the approach for the project was decided on the basis
+of that review. The hardware was then set up using the GELO BCI headset, and a recording
+procedure was established covering electrode impedance checking, alpha peak calibration,
+baseline calibration and marker placement.
+
+The ERD/ERS analysis reported in the reference dataset was reproduced to confirm that the
+processing chain was correct, after which EEG data was recorded for left-hand and
+right-hand motor imagery and the same analysis applied to it. The channels involved in left
+and right motor imagery were identified, and the recorded data was compared against the
+published results. Several SVM models were then trained using different feature sets and
+kernels, and the features that separate the two classes were identified. In parallel, the
+cognitive scoring system was built and tested over complete sessions, covering calibration,
+band power computation, score calculation and the display interface.

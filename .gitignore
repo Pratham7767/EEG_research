@@ -37,6 +37,7 @@ third_party/covariancetoolbox/
 # --- app runtime output ---
 apps/cognitive_score/sessions/
 apps/mi_bci/_out/
+apps/mi_live/_out/
 **/logs/
 
 # --- Python / tooling ---

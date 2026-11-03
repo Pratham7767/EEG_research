@@ -1,0 +1,26 @@
+\chapter*{Abstract}
+\thispagestyle{plain}
+\addcontentsline{toc}{chapter}{\numberline{}Abstract}
+The brain keeps producing small electrical signals all the time, and these signals change
+with what a person is doing and how their mind is working. This project uses a wearable,
+four-channel dry-electrode EEG headset to read two kinds of information from the same
+recording. The first is which hand a person is imagining moving, left or right, without any
+actual movement. This is called motor imagery and it is a basic building block of a
+brain-computer interface. The second is the mental state of the person, given as a
+cognitive score built from the power in the theta, alpha and beta frequency bands, which
+covers attention, cognitive load, relaxation, stress and fatigue.\\
+
+For motor imagery, the analysis method was first checked on a public dataset of 50 acute
+stroke patients, and then on the public BCI Competition IV 2b dataset of nine healthy
+subjects, which uses the same 250 Hz sampling rate and the same C3 and C4 electrode
+positions as the headset. On the 2b data the expected drop in 8--30 Hz power over the side
+of the head opposite to the imagined hand was seen in 16 of 18 cases, and the ratio of C3
+to C4 power was higher for the left hand than for the right hand in all nine subjects.
+Used alone, this ratio identified the hand on unseen days with 73.5\% accuracy, and the
+best SVM-based classifier reached 80.2\% on the same person and 74.7\% on people it had
+never seen. Left and right motor imagery was also recorded with the headset, where the
+same C3/C4 difference appears in the trials examined, but classifiers trained on either
+public dataset stayed near chance on the recorded data. This shows that the recording
+protocol, rather than the classifier, is the main thing to improve. The cognitive scoring
+part works end to end, with the scores computed live against each person's own
+calibration. No audio is recorded at any stage.
