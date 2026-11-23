@@ -3,6 +3,8 @@
     python -m cogscore.headless --simulate noise --fast --live 20
     python -m cogscore.headless --simulate noise --live 30          # real 30 s calibration + baseline
     python -m cogscore.headless --live 120                          # real headphones
+    python -m cogscore.headless --replay sessions/<name> --virtual --live 2000   # replay a recording fast
+    add --mode demo for the demo timings
 
 Exit code 0 means every check passed. Used by tests/test_sim_integration.py.
 """
@@ -15,7 +17,7 @@ import sys
 import time
 
 from . import config
-from .engine import CapsuleEngine, State
+from .engine import CapsuleEngine, State, SIMULATOR_NAMES
 from .monitor import Monitor
 
 REQUIRED_FILES = ("session.json", "productivity.csv", "emotions.csv", "indices.csv", "bands.csv",
@@ -26,26 +28,59 @@ class Failed(RuntimeError):
     pass
 
 
+class VirtualClock:
+    """Replay without waiting: time advances 20 ms per pump instead of sleeping."""
+
+    def __init__(self):
+        self.t = 0.0
+
+    def __call__(self):
+        return self.t
+
+    def sleep(self, dt):
+        self.t += dt
+
+
+_CLOCK = None          # VirtualClock during a fast replay, else None (real time)
+
+
+def _now():
+    return _CLOCK() if _CLOCK else time.monotonic()
+
+
 def _pump_until(engine, monitor, cond, timeout, what):
-    end = time.monotonic() + timeout
-    last_tick = 0.0
-    while time.monotonic() < end:
+    end = _now() + timeout
+    last_tick = -1.0
+    while _now() < end:
         engine.pump()
-        if time.monotonic() - last_tick >= 0.5:
+        if _now() - last_tick >= 0.5:
             monitor.tick()
-            last_tick = time.monotonic()
+            last_tick = _now()
         if cond():
             return
-        time.sleep(0.02)
+        _CLOCK.sleep(0.02) if _CLOCK else time.sleep(0.02)
     raise Failed(f"timed out after {timeout}s waiting for {what} (state={engine.state})")
 
 
 def run(simulate=None, fast=False, live_seconds=20, sessions_root=config.SESSIONS_DIR,
-        record_eeg=False, log=print):
-    if fast and not simulate:
+        record_eeg=False, log=print, replay=None, mode=None, scenes=False, virtual=False):
+    """virtual=True (replay only): run on a virtual clock, as fast as the CPU allows."""
+    global _CLOCK
+    if mode:
+        config.apply_mode(mode)
+    if fast and not (simulate or replay):
         raise ValueError("--fast imports a generic calibration; only allowed with --simulate")
-    engine = CapsuleEngine(simulate=simulate, record_eeg=record_eeg)
-    monitor = Monitor(engine, sessions_root=sessions_root)
+    _CLOCK = VirtualClock() if (replay and virtual) else None
+    if replay:
+        from .replay import ReplayEngine
+        engine = ReplayEngine(replay, clock=_now)
+    else:
+        engine = CapsuleEngine(simulate=simulate, record_eeg=record_eeg)
+    wall0 = time.time()
+    monitor = Monitor(engine, sessions_root=sessions_root, clock=_now,
+                      wall_clock=(lambda: wall0 + _CLOCK.t) if _CLOCK else time.time)
+    finished = []
+    engine.events.subscribe("replay_finished", lambda: finished.append(True))
     seen = {"devices": [], "errors": [], "calibration_failed": [], "gate_open": False}
     engine.events.subscribe("devices", lambda d: seen.__setitem__("devices", d))
     engine.events.subscribe("error", seen["errors"].append)
@@ -91,7 +126,11 @@ def run(simulate=None, fast=False, live_seconds=20, sessions_root=config.SESSION
             raise Failed(f"baseline failed (state={engine.state})")
         log(f"baseline {engine.baseline}")
 
-        _pump_until(engine, monitor, lambda: False if monitor.elapsed_live < live_seconds else True,
+        if scenes:                              # demo scenes, compressed: each a quarter of the live time
+            for key in ("rest", "eyes_closed", "mental_math"):
+                monitor.start_scene(key, duration=live_seconds / 4)
+                _pump_until(engine, monitor, lambda: monitor.scene is None, live_seconds, f"scene {key}")
+        _pump_until(engine, monitor, lambda: monitor.elapsed_live >= live_seconds or bool(finished),
                     live_seconds + 10, "live data")
         monitor.add_marker("headless end")
     finally:
@@ -116,7 +155,8 @@ def check_session(path, min_live_rows=5):
     for key in ("device", "calibration", "baseline", "own_baseline_bands", "summary", "duration_s"):
         if key not in meta:
             problems.append(f"session.json lacks {key!r}")
-    ref_s = config.FAST_WORK_REF_S if meta.get("baseline", {}).get("imported") else config.WORK_REF_S
+    work_ref = (meta.get("settings") or {}).get("WORK_REF_S", config.WORK_REF_S)
+    ref_s = config.FAST_WORK_REF_S if meta.get("baseline", {}).get("imported") else work_ref
     expect_stress = meta.get("summary", {}).get("live_duration_s", 0) >= ref_s + 10
     if expect_stress and "own_baseline_ratios" not in meta:
         problems.append("stress/fatigue reference never set")
@@ -152,14 +192,20 @@ def check_session(path, min_live_rows=5):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--simulate", choices=list(CapsuleEngine.SIMULATORS))
+    ap.add_argument("--simulate", choices=list(SIMULATOR_NAMES))
+    ap.add_argument("--replay", help="session folder to play back instead of a device")
+    ap.add_argument("--virtual", action="store_true", help="replay on a virtual clock (no waiting)")
+    ap.add_argument("--mode", choices=list(config.MODE_LABELS), default="real")
+    ap.add_argument("--scenes", action="store_true", help="run the demo scenes during the live part")
     ap.add_argument("--fast", action="store_true", help="import calibration/baseline (simulator only)")
     ap.add_argument("--live", type=float, default=20, help="seconds of live data to record")
     ap.add_argument("--sessions", default=config.SESSIONS_DIR)
     ap.add_argument("--record-eeg", action="store_true")
     args = ap.parse_args(argv)
     try:
-        path, summary = run(args.simulate, args.fast, args.live, args.sessions, args.record_eeg)
+        path, summary = run(args.simulate, args.fast, args.live, args.sessions, args.record_eeg,
+                            replay=args.replay, mode=args.mode, scenes=args.scenes,
+                            virtual=args.virtual)
     except Failed as exc:
         print(f"FAIL: {exc}")
         return 1

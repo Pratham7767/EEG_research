@@ -133,12 +133,15 @@ def test_headless_sinwave_values_are_sanitised(tmp_path):
     assert bands and min(float(r["alpha_rel"]) for r in bands) > 0.95
 
 
-def test_ui_selftest_drives_every_step(tmp_path):
-    """plan §6.3: the real window, driven through all 7 steps on the simulator."""
-    proc = subprocess.run([sys.executable, "app.py", "--selftest", "--selftest-live", "22", "--sessions", str(tmp_path)],
-                          cwd=PROJECT,
-                          capture_output=True, text=True, timeout=240)
+@pytest.mark.parametrize("mode", ["real", "demo"])
+def test_ui_selftest_drives_every_step(tmp_path, mode):
+    """plan §6.3: the real window, driven through all 7 steps on the simulator, in both modes; includes a
+    demo scene (demo) and a forced disconnect that must reconnect automatically and continue the session."""
+    proc = subprocess.run([sys.executable, "app.py", "--selftest", "--mode", mode, "--selftest-live", "24",
+                           "--sessions", str(tmp_path)],
+                          cwd=PROJECT, capture_output=True, text=True, timeout=330)
     assert proc.returncode == 0 and "[selftest] PASS" in proc.stdout, proc.stdout[-3000:] + proc.stderr[-3000:]
+    assert "reconnected after" in proc.stdout
 
 
 @pytest.mark.slow

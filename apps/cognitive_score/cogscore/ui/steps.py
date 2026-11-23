@@ -8,6 +8,7 @@ import customtkinter as ctk
 
 from .. import config
 from ..engine import State
+from ..monitor import COMPARE, scene_rows
 from . import theme
 from .widgets import (BandPlot, Card, EEGPlot, ElectrodeTile, HeroMetric, KSSDialog, SmallMeter, TimelinePlot,
                       fmt_int, legend_row, valid)
@@ -87,7 +88,12 @@ class ChecklistStep(Step):
                             checkbox_width=22, checkbox_height=22).pack(anchor="w", padx=22, pady=11)
             self.vars.append(var)
 
+        if self.app.demo or self.app.replay:
+            button(self, "All set", self.tick_all, kind="secondary", width=120).pack(anchor="w", pady=(14, 0))
+
     def enter(self):
+        if self.app.replay:
+            self.tick_all()
         self._check()
 
     def tick_all(self):
@@ -161,12 +167,14 @@ class ConnectStep(Step):
             self._placeholder("No devices found")
         self.scan_btn.configure(state="normal" if st in (State.IDLE, State.DEVICES_FOUND) else "disabled")
         self.connect_btn.configure(state="normal" if st == State.DEVICES_FOUND and self.selected.get() else "disabled")
-        connected = st not in (State.IDLE, State.SCANNING, State.DEVICES_FOUND, State.CONNECTING)
-        text = {State.SCANNING: "Searching…", State.CONNECTING: "Connecting…"}.get(st, "")
+        connected = st in (State.STREAMING, State.CALIBRATING, State.CALIBRATED, State.BASELINE, State.LIVE)
+        text = {State.SCANNING: "Searching…", State.CONNECTING: "Connecting…",
+                State.DISCONNECTED: "✕  Disconnected"}.get(st, "")
+        colour = theme.CRITICAL if st == State.DISCONNECTED else theme.INK_2
         if connected:
-            text = "✓  Connected"
+            text, colour = "✓  Connected", theme.GOOD
             self.app.header_device(self.engine.device_info)
-        self.state_lbl.configure(text=text, text_color=theme.GOOD if connected else theme.INK_2)
+        self.state_lbl.configure(text=text, text_color=colour)
         self.app.set_next(connected)
 
 
@@ -249,13 +257,36 @@ class CalibrationStep(Step):
         self.result.pack(pady=10)
         self._started = None
 
+    @property
+    def seconds(self):
+        return config.REPLAY_STEP_S if self.app.replay else config.CALIBRATION_SECONDS
+
     def enter(self):
         self.sub(self.engine.events, "calibrated", self._on_done)
         self.sub(self.engine.events, "calibration_failed", self._on_failed)
+        self.sub(self.engine.events, "state", self._on_state)
         self.every(200, self._tick)
+        self.count.configure(text=f"{self.seconds:.0f}")
         self.app.set_next(self.engine.state == State.CALIBRATED)
+        self._on_state(None, self.engine.state)
+
+    def _on_state(self, old, new):
+        if new == State.DISCONNECTED:
+            if old == State.CALIBRATING:
+                self._started = None
+                self.count.configure(text="✕", text_color=theme.CRITICAL)
+                self.result.configure(text="Headphones disconnected: calibration stopped. Start again once "
+                                           "they are reconnected.", text_color=theme.CRITICAL)
+            self.start_btn.configure(state="disabled")
+        elif new in (State.STREAMING, State.CALIBRATED):
+            self.start_btn.configure(state="normal")
+            self.app.set_next(new == State.CALIBRATED)
+        elif new in (State.CONNECTING, State.CALIBRATING):
+            self.start_btn.configure(state="disabled")
 
     def start(self):
+        if self.engine.state not in (State.STREAMING, State.CALIBRATED):
+            return
         self.engine.start_calibration()
         self._started = time.monotonic()
         self.start_btn.configure(state="disabled")
@@ -270,9 +301,9 @@ class CalibrationStep(Step):
         if self._started is None or self.engine.state != State.CALIBRATING:
             return
         elapsed = time.monotonic() - self._started
-        remaining = max(0, config.CALIBRATION_SECONDS - elapsed)
+        remaining = max(0, self.seconds - elapsed)
         self.count.configure(text=f"{math.ceil(remaining)}" if remaining > 0 else "…")
-        self.bar.set(min(1.0, elapsed / config.CALIBRATION_SECONDS))
+        self.bar.set(min(1.0, elapsed / self.seconds))
 
     def _on_done(self, data):
         self._started = None
@@ -318,9 +349,22 @@ class BaselineStep(Step):
         self.sub(self.engine.events, "baseline_progress", lambda p: self.bar.set(min(1.0, max(0.0, p))))
         self.sub(self.engine.events, "baseline", self._on_done)
         self.sub(self.engine.events, "error", self._on_error)
+        self.sub(self.engine.events, "state", self._on_state)
         self.app.set_next(False)
 
+    def _on_state(self, old, new):
+        if new == State.DISCONNECTED:
+            self.start_btn.configure(state="disabled")
+            if old == State.BASELINE:
+                self.bar.set(0)
+                self.msg.configure(text="Headphones disconnected: baseline stopped. Start again once they are "
+                                        "reconnected.", text_color=theme.CRITICAL)
+        elif new == State.CALIBRATED:
+            self.start_btn.configure(state="normal")
+
     def start(self):
+        if self.engine.state != State.CALIBRATED:
+            return
         self.engine.start_baseline()
         self.start_btn.configure(state="disabled")
         self.msg.configure(text="Recording…", text_color=theme.INK_2)
@@ -333,7 +377,11 @@ class BaselineStep(Step):
         self.app.status("")
         self.msg.configure(text="✓  Done", text_color=theme.GOOD)
         self.app.beep("done")
-        self.after(700, self.app.go_next)
+        self.after(700, self._advance)
+
+    def _advance(self):
+        if self.app.step is self:               # only once, and only from this screen
+            self.app.go_next()
 
     def _on_error(self, message):
         if self.engine.state == State.CALIBRATED:
@@ -342,6 +390,9 @@ class BaselineStep(Step):
 
 
 # ── 5. Live session ───────────────────────────────────────────────
+SCENE_ORDER = ("rest", "eyes_closed", "mental_math", "relax")
+
+
 class LiveStep(Step):
     def build(self):
         top = ctk.CTkFrame(self, fg_color="transparent")
@@ -355,14 +406,45 @@ class LiveStep(Step):
         self.break_btn.pack(side="right", padx=8)
         button(top, "Marker", self.ask_marker, kind="secondary", width=100).pack(side="right")
 
+        # demo scenes: one click = marker + big instruction + countdown + tone at the end
+        self.scene_btns = {}
+        self.show_scenes = bool(self.app.demo or self.app.replay)
+        if self.show_scenes:
+            bar = ctk.CTkFrame(self, fg_color="transparent")
+            bar.pack(fill="x", pady=(10, 0))
+            ctk.CTkLabel(bar, text="Scenes" if not self.app.replay else "Scenes (from the recording)",
+                         font=theme.font(13, "bold"), text_color=theme.MUTED).pack(side="left", padx=(0, 10))
+            for i, key in enumerate(SCENE_ORDER):
+                label, secs, _ = config.SCENES[key]
+                btn = button(bar, f"{i + 1}  {label}  ·  {secs} s", lambda k=key: self.start_scene(k),
+                             kind="secondary", width=150)
+                btn.pack(side="left", padx=(0, 8))
+                self.scene_btns[key] = btn
+                if self.app.replay:
+                    btn.configure(state="disabled")
+        self.scene_panel = ctk.CTkFrame(self, fg_color=theme.SURFACE, corner_radius=12, border_width=2,
+                                        border_color=theme.SCENE)
+        left = ctk.CTkFrame(self.scene_panel, fg_color="transparent")
+        left.pack(side="left", fill="x", expand=True, padx=20, pady=12)
+        self.scene_title = ctk.CTkLabel(left, text="", font=theme.font(26, "bold"), text_color=theme.INK, anchor="w")
+        self.scene_title.pack(anchor="w")
+        self.scene_text = ctk.CTkLabel(left, text="", font=theme.font(16), text_color=theme.INK_2, anchor="w",
+                                       justify="left", wraplength=800)
+        self.scene_text.pack(anchor="w")
+        self.scene_count = ctk.CTkLabel(self.scene_panel, text="", font=theme.font(44, "bold"), text_color=theme.SCENE)
+        self.scene_count.pack(side="left", padx=16)
+        self.scene_stop = button(self.scene_panel, "End scene", self.end_scene, kind="secondary", width=110)
+        self.scene_stop.pack(side="left", padx=(0, 16))
+
         self.banner = ctk.CTkFrame(self, fg_color=theme.RAISED, corner_radius=10)
         self.banner_lbl = ctk.CTkLabel(self.banner, text="", font=theme.font(14, "bold"), text_color=theme.INK)
         self.banner_lbl.pack(side="left", padx=16, pady=10)
         self.banner_close = ctk.CTkButton(self.banner, text="Dismiss", width=90, fg_color="transparent",
                                           hover_color=theme.SURFACE, text_color=theme.MUTED, command=self._hide_banner)
         self.banner_close.pack(side="right", padx=8)
-        self.banner_btn = button(self.banner, "Take a break", self.toggle_break, width=130)
+        self.banner_btn = button(self.banner, "Take a break", self._banner_action, width=130)
         self.banner_btn.pack(side="right", padx=4, pady=6)
+        self._banner_kind = None
 
         self.body = ctk.CTkFrame(self, fg_color="transparent")
         self.body.pack(fill="both", expand=True, pady=(14, 0))
@@ -387,7 +469,7 @@ class LiveStep(Step):
         bc.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
         head = ctk.CTkFrame(bc, fg_color="transparent")
         head.pack(fill="x", padx=18, pady=(12, 0))
-        ctk.CTkLabel(head, text="Brain waves", font=theme.font(14, "bold"), text_color=theme.INK_2).pack(side="left")
+        ctk.CTkLabel(head, text="Brain waves vs rest", font=theme.font(14, "bold"), text_color=theme.INK_2).pack(side="left")
         self.bands = BandPlot(bc)
         self.bands.widget.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
@@ -401,6 +483,8 @@ class LiveStep(Step):
         self._kss_dialog = None
         self._disconnected = False
         self._last_snap = None
+        self._last_count = None
+        self._switching = False
 
     def enter(self):
         self.app.set_next(False, visible=False)
@@ -408,8 +492,13 @@ class LiveStep(Step):
         self.sub(self.monitor.events, "break_suggested", self._on_break_suggested)
         self.sub(self.monitor.events, "self_report_due", self.open_kss)
         self.sub(self.monitor.events, "stress_episode", self._on_stress_episode)
+        self.sub(self.monitor.events, "scene", self._on_scene)
         self.sub(self.engine.events, "disconnected", self._on_disconnected)
+        self.sub(self.engine.events, "reconnected", self._on_reconnected)
+        self.sub(self.engine.events, "replay_break", self._on_replay_break)     # the Monitor handles scenes/markers
+        self.sub(self.engine.events, "replay_finished", self._on_replay_finished)
         self.every(1000, self._tick)
+        self.every(250, self._scene_tick)
 
     # actions
     def ask_marker(self):
@@ -419,7 +508,7 @@ class LiveStep(Step):
             self.add_marker(text)
 
     def add_marker(self, text):
-        text = text.strip()
+        text = (text or "").strip()
         if text:
             self.monitor.add_marker(text)
             self.app.status(f"Marker: {text}")
@@ -432,7 +521,22 @@ class LiveStep(Step):
         else:
             self.monitor.start_break()
             self.break_btn.configure(text="Resume")
-            self._show_banner("On a break", button="Resume", dismiss=False)
+            self._show_banner("On a break", button="Resume", dismiss=False, kind="break")
+
+    def start_scene(self, key, duration=None):
+        if self.monitor.in_break:
+            self.app.status("End the break first.", error=True)
+            return
+        self._switching = self.monitor.scene is not None      # no "finished" tone when switching scenes
+        try:
+            started = self.monitor.start_scene(key, duration)
+        finally:
+            self._switching = False
+        if started:
+            self.app.beep("start")
+
+    def end_scene(self):
+        self.monitor.end_scene()
 
     def open_kss(self):
         if self._kss_dialog is None or not self._kss_dialog.winfo_exists():
@@ -468,9 +572,12 @@ class LiveStep(Step):
                 self.small["heart_rate"].pack(side="left", fill="x", expand=True, padx=18, pady=12)
                 self._hr_shown = True
             self.small["heart_rate"].set(s["heart_rate"], fraction=(s["heart_rate"] - 40) / 140)
+        self._draw_signal(s["signal_poor"])
+
+    def _draw_signal(self, poor):
         if self._disconnected:
             text, colour = "✕  Disconnected", theme.CRITICAL
-        elif s["signal_poor"]:
+        elif poor:
             text, colour = "▲  Adjust headphones", theme.WARNING
         else:
             text, colour = "●  Signal good", theme.GOOD
@@ -481,9 +588,50 @@ class LiveStep(Step):
         if s:
             self.bands.update_from(s["bands_change"], s["bands_ready"])
 
+    def _on_scene(self, key):
+        if key is None:
+            self.scene_panel.pack_forget()
+            if not self._switching:
+                self.app.beep("done")              # the tone matters: eyes may be closed
+            self.app.status("Scene finished")
+            for btn in self.scene_btns.values():
+                btn.configure(border_color=theme.BORDER)
+            return
+        label, _secs, text = config.SCENES[key]
+        self.scene_title.configure(text=label)
+        self.scene_text.configure(text=text)
+        self.scene_stop.configure(state="disabled" if self.app.replay else "normal")
+        self._last_count = None
+        self._scene_tick()
+        self.scene_panel.pack(fill="x", pady=(10, 0), before=self.body)
+        for k, btn in self.scene_btns.items():
+            btn.configure(border_color=theme.SCENE if k == key else theme.BORDER)
+
+    def _scene_tick(self):
+        if self.monitor.scene is None:
+            return
+        left = int(math.ceil(self.monitor.scene_remaining()))
+        if left != self._last_count:
+            self._last_count = left
+            self.scene_count.configure(text=f"{left // 60}:{left % 60:02d}")
+
+    def _on_replay_break(self, _started):
+        """The Monitor already started / ended the break; mirror it on the button and banner."""
+        if self.monitor.in_break:
+            self.break_btn.configure(text="Resume")
+            self._show_banner("On a break (recorded)", button=None, dismiss=False, kind="break")
+        else:
+            self.break_btn.configure(text="Take a break")
+            if self._banner_kind == "break":
+                self._hide_banner()
+
+    def _on_replay_finished(self):
+        self._show_banner("The recording has ended. Press End session to see the summary.", button="End session",
+                          kind="end")
+
     def _on_break_suggested(self, reason):
         self.app.beep("prompt")
-        self._show_banner(f"Time for a short break  ·  {reason}", button="Take a break")
+        self._show_banner(f"Time for a short break  ·  {reason}", button="Take a break", kind="suggest")
 
     def _on_stress_episode(self, active):
         if active:
@@ -491,18 +639,38 @@ class LiveStep(Step):
 
     def _on_disconnected(self):
         self._disconnected = True
-        self.app.beep("error")
-        self._show_banner("Headphones disconnected. Data so far is saved.", button=None)
+        self._draw_signal(False)
+        self._show_banner("Headphones disconnected. Reconnecting… Data so far is saved.", button=None,
+                          dismiss=False, kind="disconnect")
+
+    def _on_reconnected(self):
+        self._disconnected = False
+        self._draw_signal(False)
+        if self._banner_kind == "disconnect":
+            self._hide_banner()
+        self.app.status("Reconnected. The session continues.")
 
     def _tick(self):
         e = int(self.monitor.elapsed_live)
         self.clock_lbl.configure(text=f"{e // 60:02d}:{e % 60:02d}")
         self.timeline.update_from(self.monitor.trend, self.monitor.stress_episodes.episodes,
                                   self.monitor.breaks, now_s=self.monitor.elapsed_live,
-                                  window_s=config.TREND_WINDOW_S)
+                                  window_s=config.TREND_WINDOW_S, scenes=self.monitor.scenes,
+                                  drops=self.monitor.disconnects)
         self._draw_bands()
+        if self._disconnected and self.engine.state == "disconnected" and self._banner_kind == "disconnect":
+            self.banner_lbl.configure(text="Headphones disconnected. Press Reconnect (bottom right). "
+                                           "Data so far is saved.")
 
-    def _show_banner(self, text, button=None, dismiss=True):
+    def _banner_action(self):
+        kind = self._banner_kind
+        if kind == "end":
+            self.stop(confirm=False)
+        else:
+            self.toggle_break()
+
+    def _show_banner(self, text, button=None, dismiss=True, kind=None):
+        self._banner_kind = kind
         self.banner_lbl.configure(text=text)
         if button:
             self.banner_btn.configure(text=button)
@@ -516,6 +684,7 @@ class LiveStep(Step):
         self.banner.pack(fill="x", pady=(12, 0), before=self.body)
 
     def _hide_banner(self):
+        self._banner_kind = None
         self.banner.pack_forget()
 
 
@@ -526,8 +695,10 @@ class SummaryStep(Step):
     def build(self):
         self.tiles = ctk.CTkFrame(self, fg_color="transparent")
         self.tiles.pack(fill="x", pady=(16, 0))
+        self.changed = Card(self)
         charts = ctk.CTkFrame(self, fg_color="transparent")
         charts.pack(fill="both", expand=True, pady=(12, 0))
+        self.charts = charts
         charts.grid_columnconfigure(0, weight=3)
         charts.grid_columnconfigure(1, weight=2)
         charts.grid_rowconfigure(0, weight=1)
@@ -542,8 +713,9 @@ class SummaryStep(Step):
         row.pack(fill="x", pady=(14, 0))
         self.path_lbl = ctk.CTkLabel(row, text="", font=theme.font(12), text_color=theme.MUTED)
         self.path_lbl.pack(side="left")
-        button(row, "Close", self.app.on_close, width=120).pack(side="right")
-        button(row, "Open folder", self.open_folder, kind="secondary", width=130).pack(side="right", padx=8)
+        button(row, "Close", self.app.on_close, width=110).pack(side="right")
+        button(row, "New session", self.app.new_session, kind="secondary", width=130).pack(side="right", padx=8)
+        button(row, "Open folder", self.open_folder, kind="secondary", width=130).pack(side="right")
         self.summary = None
 
     def _tile(self, parent, label, value, sub=""):
@@ -558,23 +730,59 @@ class SummaryStep(Step):
         s = self.summary = self.monitor.summary()
         sc = s["scores"]
         mins = s["live_duration_s"] / 60
+        need = f"needs {config.WORK_REF_S / 60:.0f}+ min"
         tiles = [
             ("Duration", f"{int(mins)}:{int(s['live_duration_s'] % 60):02d}", _plural(len(s["breaks"]), "break")),
             ("Attention", fmt_int(sc["attention"]["mean"]), "average"),
             ("Cognitive load", fmt_int(sc["cognitive_load"]["mean"]), "average"),
-            ("Stress", fmt_int(sc["stress"]["mean"]), "average"),
+            ("Stress", fmt_int(sc["stress"]["mean"]), "average" if valid(sc["stress"]["mean"]) else need),
             ("Stress episodes", str(len(s["stress_episodes"])),
              f"{s['stress_time_s'] / 60:.1f} min in total" if s["stress_episodes"] else "None"),
-            ("Signal", f"{100 - 100 * s['artifact_fraction']:.0f}%", "clean"),
+            ("Signal", f"{100 - 100 * s['artifact_fraction']:.0f}%",
+             "clean" + (f" · {_plural(len(s['disconnects']), 'drop')}" if s.get("disconnects") else "")),
         ]
         for i, (label, value, sub) in enumerate(tiles):
             self.tiles.grid_columnconfigure(i, weight=1, uniform="t")
             self._tile(self.tiles, label, value, sub).grid(row=0, column=i, sticky="nsew",
                                                           padx=(0 if i == 0 else 5, 0 if i == len(tiles) - 1 else 5))
+        self._build_changed(s)
         self.timeline.update_from(list(self.monitor.trend), s["stress_episodes"], s["breaks"],
-                                  now_s=s["live_duration_s"])
+                                  now_s=s["live_duration_s"], scenes=(s.get("scenes") or {}).get("list", []),
+                                  drops=s.get("disconnects") or [])
         self.bands.update_from(s["bands_change_mean"], any(valid(v) for v in s["bands_change_mean"].values()))
-        self.path_lbl.configure(text=f"Saved  ·  {os.path.basename(s['session_path'])}" if s["session_path"] else "")
+        label = config.MODE_LABELS.get(s.get("mode"), "")
+        replay = "  ·  REPLAY of recorded data" if self.app.replay else ""
+        self.path_lbl.configure(text=(f"{label} mode{replay}  ·  Saved  ·  {os.path.basename(s['session_path'])}"
+                                      if s["session_path"] else ""))
+
+    def _build_changed(self, s):
+        ref_label, rows = scene_rows(s)
+        if not rows:
+            return
+        card = self.changed
+        ctk.CTkLabel(card, text=f"What changed in each scene   (compared with {ref_label})",
+                     font=theme.font(14, "bold"), text_color=theme.INK_2).grid(row=0, column=0, columnspan=7,
+                                                                               sticky="w", padx=18, pady=(12, 4))
+        heads = ["Scene", "Time"] + [lbl + (" (% pts)" if typ == "band" else "") for _k, lbl, typ in COMPARE]
+        for c, h in enumerate(heads):
+            ctk.CTkLabel(card, text=h, font=theme.font(12), text_color=theme.MUTED).grid(
+                row=1, column=c, sticky="w", padx=(18 if c == 0 else 10, 10))
+            card.grid_columnconfigure(c, weight=1 if c else 2)
+        for r, (name, secs, cells) in enumerate(rows, start=2):
+            ctk.CTkLabel(card, text=name, font=theme.font(15, "bold"), text_color=theme.INK).grid(
+                row=r, column=0, sticky="w", padx=18, pady=2)
+            ctk.CTkLabel(card, text=f"{secs:.0f} s", font=theme.font(13), text_color=theme.INK_2).grid(
+                row=r, column=1, sticky="w", padx=10)
+            for c, v in enumerate(cells, start=2):
+                text = "—" if not valid(v) else ("0" if round(v) == 0 else f"{v:+.0f}")
+                colour = theme.INK if valid(v) and abs(v) >= 10 else theme.INK_2
+                ctk.CTkLabel(card, text=text, font=theme.font(15, "bold" if valid(v) and abs(v) >= 10 else "normal"),
+                             text_color=colour).grid(row=r, column=c, sticky="w", padx=10)
+        ctk.CTkLabel(card, text="Scores: difference of the 0-100 average. Alpha: change of alpha power vs the eyes-open "
+                                "rest baseline, minus the same change in the comparison period. The first 5 s of each "
+                                "scene are skipped.", font=theme.font(11), text_color=theme.MUTED, wraplength=1000,
+                     justify="left").grid(row=len(rows) + 2, column=0, columnspan=7, sticky="w", padx=18, pady=(4, 12))
+        card.pack(fill="x", pady=(12, 0), before=self.charts)
 
     def open_folder(self):
         if self.summary and self.summary["session_path"]:

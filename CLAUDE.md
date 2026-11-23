@@ -133,6 +133,18 @@ with groups formed using known labels, so it is a block-level decision, not sing
 * Open: never run on the headset; units assumed volts; 2026-04-14 raw recording is bad contact (13 % pinned);
   Bluetooth delay unmeasured; PackNum-per-sample assumption; montage untested on real data.
 
+## 6c. Cognitive Score app `apps/cognitive_score/` (updated 2026-11-23)
+
+* Two modes, same measurements, only timings differ (`config.apply_mode`, `DEMO_OVERRIDES`): **Real use** and
+  **Demo** (10-min talk: reference 1 min, fatigue prompt after 3 min, sure prompt at 6 min, KSS at 4 min).
+  `run.bat` = start window (Demo / Real / Replay), `run_demo.bat`, `run_real.bat`, `run_selftest.bat`.
+  `.bat` files call `_python.bat` (C:\Python313\python.exe; old run.bat used the 3.8 `python`).
+* Demo scenes (Rest / Eyes closed / Mental math / Relax) with countdown + tone; summary "What changed" table.
+* Auto-reconnect after a Bluetooth drop (re-imports calibration + baseline, same session folder).
+* `--replay sessions/<name>` (cogscore/replay.py) = stage backup, labelled REPLAY; reproduces the original scores.
+* Fixed: infinite resistance (electrode off) crashed the resistances writer, so bad-contact rows were missing.
+* Tests: 81 fast + 9 sim (both UI self-tests force a disconnect) + 1 slow, all pass on this PC.
+
 ## 7. Rules / pitfalls established in this project
 
 1. Cue = `trial` + 3 s in 2b. Always verify event indices (the stroke data had a marker-2 trap too).

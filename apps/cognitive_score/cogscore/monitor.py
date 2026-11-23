@@ -15,7 +15,10 @@ Events emitted on `monitor.events`:
     quality(grades, gate_progress, gate_open)   scores(snapshot dict)
     signal_warning(bool)                        break_suggested(reason)
     self_report_due()                           ppg_detected()
-    stress_episode(active: bool)
+    stress_episode(active: bool)                scene(key or None)   (a demo scene started / ended)
+
+Besides the CapsuleEngine events it also accepts, from a ReplayEngine:
+    index_values(rel, own)   band_frame(frame)   (already-computed values from a recorded session)
 """
 import math
 import time
@@ -70,6 +73,10 @@ class Monitor:
         self.breaks = []                       # [[start_elapsed, end_elapsed or None]]
         self.kss = []                          # [(elapsed_s, score)]
         self.markers = []                      # [(elapsed_s, text)]
+        self.scenes = []                       # [{"key", "label", "start", "end", "duration"}] (demo scenes)
+        self._scene_data = []                  # per scene: {"scores": {k: RunningStats}, "abs": {band: [..]}}
+        self._outside = {"scores": {k: RunningStats() for k in SCORES}, "abs": {b: [] for b in BAND_NAMES}}
+        self.disconnects = []                  # [[elapsed_s, reconnected_elapsed_s or None]]
 
         # references: stress/fatigue vs the first minutes of work, band powers vs rest
         self.ratio_base = BaselineCollector()
@@ -98,7 +105,8 @@ class Monitor:
 
         ev = engine.events
         for name in ("state", "connected", "resistances", "artifacts", "eeg", "psd", "emotions", "productivity",
-                     "indexes", "cardio", "calibrated", "calibration_failed", "baseline", "disconnected", "error"):
+                     "indexes", "cardio", "calibrated", "calibration_failed", "baseline", "disconnected", "error",
+                     "reconnected", "index_values", "band_frame", "replay_scene", "replay_marker", "replay_break"):
             ev.subscribe(name, getattr(self, f"_on_{name}"))
 
     # ── public actions (called by the UI) ────────────────────────
@@ -133,8 +141,54 @@ class Monitor:
         self.markers.append((round(self.elapsed_live, 1), text))
         self._event("marker", text)
 
+    # ── demo scenes ──────────────────────────────────────────────
+    @property
+    def scene(self):
+        """The running scene dict, or None."""
+        return self.scenes[-1] if self.scenes and self.scenes[-1]["end"] is None else None
+
+    def scene_remaining(self):
+        sc = self.scene
+        return 0.0 if sc is None else max(0.0, sc["duration"] - (self.elapsed_live - sc["start"]))
+
+    def start_scene(self, key, duration=None):
+        """Start a scene (ends a running one). Not possible before live or during a break."""
+        if self.live_since is None or self.in_break or key not in config.SCENES:
+            return False
+        if self.scene is not None:
+            self.end_scene()
+        label, default_s, _text = config.SCENES[key]
+        now = round(self.elapsed_live, 1)
+        self.scenes.append({"key": key, "label": label, "start": now, "end": None,
+                            "duration": float(duration if duration is not None else default_s)})
+        self._scene_data.append({"scores": {k: RunningStats() for k in SCORES}, "abs": {b: [] for b in BAND_NAMES}})
+        self.markers.append((now, label))
+        self._event("scene_start", f"{key} {label}")
+        self.events.emit("scene", key)
+        return True
+
+    def end_scene(self):
+        sc = self.scene
+        if sc is None:
+            return False
+        sc["end"] = round(self.elapsed_live, 1)
+        self._event("scene_end", sc["key"])
+        self.events.emit("scene", None)
+        return True
+
+    def _scene_bucket(self, elapsed):
+        """Where a clean live sample at `elapsed` belongs: a scene's data, the outside data, or None
+        (the settling seconds at the start of a scene)."""
+        sc = self.scene
+        if sc is None:
+            return self._outside
+        if elapsed - sc["start"] < config.SCENE_SETTLE_S:
+            return None
+        return self._scene_data[-1]
+
     def start_break(self):
         if self.break_rule and not self.in_break:
+            self.end_scene()
             self.break_rule.start_break(self._clock())
             self.breaks.append([round(self.elapsed_live, 1), None])
             self._event("break_start")
@@ -171,7 +225,10 @@ class Monitor:
                 self._event("signal_poor" if poor else "signal_ok", f"{self.artifacts.fraction(now):.0%} artifacted")
         if self.live_since is None:
             return
-        if self.self_reports and not self.in_break and self.self_reports.due(now):
+        if self.scene is not None and self.scene_remaining() <= 0:
+            self.end_scene()
+        # The check-in waits until a break or a scene is over (a pop-up during "eyes closed" would spoil it).
+        if self.self_reports and not self.in_break and self.scene is None and self.self_reports.due(now):
             self.events.emit("self_report_due")
         reason = self.break_rule.update(now, self._smooth["fatigue"].value(now))
         if reason:
@@ -196,6 +253,7 @@ class Monitor:
             "heart_rate": sanitize(card.get("heart_rate")) if card.get("metrics_available") else NAN,
             "hr_stress_index": sanitize(card.get("stress_index")) if card.get("metrics_available") else NAN,
             "in_break": self.in_break,
+            "scene": self.scene["key"] if self.scene else None,
             "elapsed_s": self.elapsed_live,
         })
         return snap
@@ -220,6 +278,9 @@ class Monitor:
             "breaks": self.breaks,
             "self_reports_kss": self.kss,
             "markers": self.markers,
+            "scenes": self.scene_summary(),
+            "disconnects": self.disconnects,
+            "mode": config.MODE,
             "artifact_fraction": round(self.artifacts.session_fraction, 3),
             "raw_windows_rejected": round(self.raw.rejected_fraction, 3) if self.raw else None,
             "gate_overrides": self.gate_overrides,
@@ -228,8 +289,46 @@ class Monitor:
             "session_path": self.session.path if self.session else None,
         }
 
+    def scene_summary(self):
+        """Per scene kind: mean scores and band change vs the rest baseline, plus the reference they are
+        compared with ("Rest" scenes if there were any, otherwise the live time outside scenes)."""
+        def pack(stats, abs_lists):
+            return {"scores": {k: stats[k].mean for k in SCORES},
+                    "bands_change": {b: percent_of_baseline(float(np.median(v)) if v else NAN,
+                                                            self.band_base.get(f"abs_{b}"))
+                                     for b, v in abs_lists.items()},
+                    "samples": max(st.n for st in stats.values())}
+        kinds = []
+        for sc in self.scenes:
+            if sc["key"] not in kinds:
+                kinds.append(sc["key"])
+        out = []
+        for key in kinds:
+            stats = {k: RunningStats() for k in SCORES}
+            abs_lists = {b: [] for b in BAND_NAMES}
+            seconds = 0.0
+            for sc, data in zip(self.scenes, self._scene_data):
+                if sc["key"] != key:
+                    continue
+                seconds += (sc["end"] if sc["end"] is not None else self.elapsed_live) - sc["start"]
+                for k in SCORES:
+                    st = data["scores"][k]
+                    if st.n:
+                        stats[k].n += st.n
+                        stats[k].total += st.total
+                for b in BAND_NAMES:
+                    abs_lists[b].extend(data["abs"][b])
+            out.append({"key": key, "label": config.SCENES[key][0], "seconds": round(seconds, 1),
+                        "count": sum(sc["key"] == key for sc in self.scenes), **pack(stats, abs_lists)})
+        rest = next((x for x in out if x["key"] == "rest"), None)
+        reference = dict(rest, label="Rest") if rest else {"key": "outside", "label": "Rest of the session",
+                                                           **pack(self._outside["scores"], self._outside["abs"])}
+        return {"by_kind": out, "reference": reference,
+                "list": [dict(sc) for sc in self.scenes]}
+
     def close(self):
         if self.session and not self.session.closed:
+            self.end_scene()
             if self.in_break:
                 self.end_break()
             if self.stress_episodes.active:
@@ -246,6 +345,7 @@ class Monitor:
 
     def _on_state(self, old, new):
         if new == "baseline":
+            self._event("baseline_start")
             self.ratio_base, self.band_base = BaselineCollector(), BaselineCollector(
                 min_samples=max(6, config.OWN_BASELINE_MIN_SAMPLES // 2))
             self._collecting = True
@@ -256,7 +356,11 @@ class Monitor:
             self.session.set_meta("device", info)
             self.session.set_meta("simulated", info.get("simulated", False))
             self.session.set_meta("settings", {"raw_bands_hz": config.RAW_BANDS, "sdk_bands_hz": config.BANDS,
-                                               "mains_hz": config.MAINS_HZ, "high_beta_hz": config.HIGH_BETA})
+                                               "mains_hz": config.MAINS_HZ, "high_beta_hz": config.HIGH_BETA,
+                                               **config.mode_settings()})
+            self.session.set_meta("mode", config.MODE)
+            if info.get("replay_of"):
+                self.session.set_meta("replay_of", info["replay_of"])
             if getattr(self.engine, "record_eeg", False):
                 self.session.open_eeg(info.get("channels", []))
         channels = info.get("channels") or getattr(self.engine, "channel_names", [])
@@ -267,6 +371,29 @@ class Monitor:
 
     def _on_disconnected(self):
         self._event("disconnected")
+        if self.live_since is not None:
+            self.disconnects.append([round(self.elapsed_live, 1), None])
+
+    def _on_replay_scene(self, key):
+        if key is None:
+            self.end_scene()
+        elif key in config.SCENES:
+            self.start_scene(key)
+
+    def _on_replay_marker(self, text):
+        if text:
+            self.add_marker(text)
+
+    def _on_replay_break(self, started):
+        if started and not self.in_break:
+            self.start_break()
+        elif not started and self.in_break:
+            self.end_break()
+
+    def _on_reconnected(self):
+        self._event("reconnected")
+        if self.disconnects and self.disconnects[-1][1] is None:
+            self.disconnects[-1][1] = round(self.elapsed_live, 1)
 
     def _on_error(self, message):
         self._event("error", message)
@@ -278,7 +405,13 @@ class Monitor:
         self.events.emit("quality", grades, self.gate.progress(now), self.gate.is_open(now))
         if self.session and self._t_res.ready(now):
             for name, ohms in values.items():
-                self.session.write("resistances", {"electrode": name, "ohms": round(ohms), "grade": grades[name]})
+                # An electrode off the skin reads as infinity: record it as "inf" (round(inf) used to raise,
+                # so exactly the bad-contact moments were missing from resistances.csv).
+                try:
+                    value = round(float(ohms)) if math.isfinite(float(ohms)) else "inf"
+                except (TypeError, ValueError):
+                    value = ""
+                self.session.write("resistances", {"electrode": name, "ohms": value, "grade": grades.get(name, "bad")})
 
     def _on_artifacts(self, sdk_ms, flags):
         now = self._clock()
@@ -327,12 +460,22 @@ class Monitor:
             for b in BAND_NAMES:
                 self.band_stats[b].add(frame["rel"][b])
                 self.band_live_abs[b].append(frame["abs"][b])
+            bucket = self._scene_bucket(self.elapsed_live)
+            if bucket is not None:
+                for b in BAND_NAMES:
+                    bucket["abs"][b].append(frame["abs"][b])
         self._maybe_freeze(now)
 
     def _on_psd(self, freqs, spectrum, sdk_ms):
-        now = self._clock()
         cal = getattr(self.engine, "calibration", None) or {}
         rel, own = compute_indices(freqs, spectrum, cal.get("iapf"))
+        self._on_index_values(rel, own)
+
+    def _on_index_values(self, rel, own):
+        """Relative SDK band powers + formula indices (from a live spectrum, or replayed from indices.csv)."""
+        now = self._clock()
+        own = {k: own.get(k, NAN) for k in ("concentration", "relaxation", "fatigue", "reverse_fatigue",
+                                             "cognitive_load", "cognitive_control", "alpha_gravity", "arousal")}
         self.latest["rel"], self.latest["own"] = rel, own
         if self.session:
             self.session.write("indices", {**rel, **own})
@@ -397,6 +540,7 @@ class Monitor:
         self.live_since = now
         self.break_rule = BreakRule(now)
         self.self_reports = SelfReportScheduler(now)
+        self.stress_episodes = StressEpisodes()       # timings of the current mode
         if self.session:
             self.session.set_meta("baseline", data)
         imported = bool(data.get("imported"))
@@ -444,7 +588,36 @@ class Monitor:
             return                               # artifacted / break seconds do not count towards the summary
         minute = int(elapsed // 60)
         bins = self.minute_bins.setdefault(minute, {k: RunningStats() for k in SCORES})
+        bucket = self._scene_bucket(elapsed)
         for k in SCORES:
             if is_valid(values[k]):
                 self.stats[k].add(values[k])
                 bins[k].add(values[k])
+                if bucket is not None:
+                    bucket["scores"][k].add(values[k])
+
+
+COMPARE = (("alpha", "Alpha waves", "band"), ("attention", "Attention", "score"),
+           ("cognitive_load", "Cognitive load", "score"), ("relaxation", "Relaxation", "score"),
+           ("stress", "Stress", "score"))
+
+
+def scene_rows(summary):
+    """Rows for the "What changed" table: per scene kind, the change vs the reference.
+    Band: % change of alpha power vs the eyes-open rest baseline (difference to the reference's own
+    change, in percentage points). Scores: difference of the mean 0-100 score vs the reference."""
+    sc = summary.get("scenes") or {}
+    ref = sc.get("reference") or {}
+    rows = []
+    for kind in sc.get("by_kind", []):
+        if kind["key"] == "rest" and ref.get("key") == "rest":
+            continue
+        cells = []
+        for key, _label, typ in COMPARE:
+            if typ == "band":
+                v, r = kind["bands_change"].get(key), ref.get("bands_change", {}).get(key)
+            else:
+                v, r = kind["scores"].get(key), ref.get("scores", {}).get(key)
+            cells.append(v - r if is_valid(v) and is_valid(r) else math.nan)
+        rows.append((kind["label"], kind["seconds"], cells))
+    return ref.get("label", "rest"), rows

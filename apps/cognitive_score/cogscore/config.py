@@ -96,3 +96,49 @@ FAST_IAPF = dict(individual_frequency=10.0, individual_peak_frequency=10.0,
                  lower_frequency=7.0, upper_frequency=13.0)
 FAST_BASELINE = dict(concentration=1.0, fatigue=1.0, gravity=0.5, productivity=0.5,
                      relax=1.0, reverse_fatigue=1.0)
+
+# ── Demo scenes (live screen, demo mode): name -> (label, seconds, instruction) ──
+# Each scene puts a marker on the timeline and is compared with "Rest" in the summary.
+SCENES = {
+    "rest":        ("Rest", 30, "Eyes open, look at the screen, sit still"),
+    "eyes_closed": ("Eyes closed", 20, "Close your eyes and relax. A tone tells you when to open them"),
+    "mental_math": ("Mental math", 60, "Count down silently in 7s: 1000, 993, 986 ... keep your jaw still"),
+    "relax":       ("Relax", 45, "Eyes closed, breathe slowly, let your body go heavy"),
+}
+SCENE_SETTLE_S = 5.0                         # skip the first seconds of a scene (smoothing / eyes settling)
+REPLAY_STEP_S = 5.0                          # replay: calibration and baseline steps take this long
+
+# ── Modes ─────────────────────────────────────────────────────────
+# "real": the values above (an hour-long work session).
+# "demo": the same measurements with shorter timings, so every feature shows up in a 10-minute talk.
+# Only timings change; the formulas, filters and thresholds stay identical.
+MODE = "real"
+MODE_LABELS = {"real": "Real use", "demo": "Demo"}
+DEMO_OVERRIDES = dict(
+    WORK_REF_S=60.0,                         # stress/fatigue reference: first 1 min of the session
+    FATIGUE_MIN_LIVE_S=180.0,                # fatigue break prompt possible after 3 min
+    FATIGUE_BREAK_SUSTAIN_S=30.0,            # fatigue high for 30 s
+    WORK_BLOCK_S=360.0,                      # time-based prompt after 6 min without a break (a sure prompt)
+    MIN_BREAK_S=20.0,                        # a 20 s break counts as a real break
+    BREAK_COOLDOWN_S=120.0,
+    STRESS_EPISODE_HOLD_S=15.0,
+    SELF_REPORT_INTERVAL_S=240.0,            # sleepiness check-in at 4 min
+    TREND_WINDOW_S=600.0,                    # timeline shows the last 10 min
+)
+_REAL_VALUES = {k: globals()[k] for k in DEMO_OVERRIDES}
+
+
+def apply_mode(mode):
+    """Switch every timing to the given mode ("real" or "demo"). Call before creating the Monitor."""
+    if mode not in MODE_LABELS:
+        raise ValueError(f"mode must be one of {list(MODE_LABELS)}")
+    g = globals()
+    g.update(_REAL_VALUES)
+    if mode == "demo":
+        g.update(DEMO_OVERRIDES)
+    g["MODE"] = mode
+
+
+def mode_settings():
+    """The timings in force (saved in session.json)."""
+    return {"mode": MODE, **{k: globals()[k] for k in DEMO_OVERRIDES}}

@@ -204,7 +204,8 @@ class TimelinePlot(_Plot):
 
     @classmethod
     def legend_items(cls):
-        return [(cls.LABELS[k], theme.METRIC_COLOURS[k]) for k in cls.KEYS] + [("Stress episode", theme.WARNING)]
+        return [(cls.LABELS[k], theme.METRIC_COLOURS[k]) for k in cls.KEYS] + [("Stress episode", theme.WARNING),
+                                                                                ("Scene", theme.SCENE)]
 
     def __init__(self, parent, figsize=(6.4, 2.6)):
         super().__init__(parent, figsize)
@@ -217,7 +218,7 @@ class TimelinePlot(_Plot):
         self.fig.subplots_adjust(left=0.05, right=0.99, top=0.97, bottom=0.12)
         self._spans = []
 
-    def update_from(self, trend, episodes=(), breaks=(), now_s=None, window_s=None):
+    def update_from(self, trend, episodes=(), breaks=(), now_s=None, window_s=None, scenes=(), drops=()):
         ax = self.axes[0]
         for span in self._spans:
             span.remove()
@@ -239,6 +240,22 @@ class TimelinePlot(_Plot):
         for start, stop in breaks:
             stop = stop if stop is not None else end_s
             self._spans.append(ax.axvspan(start / 60, stop / 60, color=theme.INK_2, alpha=0.07, linewidth=0))
+        for start, stop in drops:                  # headphones disconnected: red band labelled at the bottom
+            stop = stop if stop is not None else end_s
+            if stop < start_s:
+                continue
+            self._spans.append(ax.axvspan(start / 60, max(stop, start + 0.5) / 60, color=theme.CRITICAL, alpha=0.25,
+                                          linewidth=0))
+            self._spans.append(ax.text(max(start, start_s) / 60, 2, " disconnected", color=theme.CRITICAL,
+                                       fontsize=8, va="bottom", ha="left", clip_on=True))
+        for sc in scenes:                          # demo scenes: outlined span + name at the top
+            start, stop = sc["start"], sc["end"] if sc.get("end") is not None else end_s
+            if stop < start_s:
+                continue
+            self._spans.append(ax.axvspan(start / 60, stop / 60, color=theme.SCENE, alpha=0.12, linewidth=0))
+            self._spans.append(ax.axvline(start / 60, color=theme.SCENE, linewidth=1))
+            self._spans.append(ax.text(max(start, start_s) / 60, 98, " " + sc["label"], color=theme.INK_2,
+                                       fontsize=8, va="top", ha="left", clip_on=True))
         self.draw()
 
 

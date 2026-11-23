@@ -12,7 +12,11 @@ Events emitted on `engine.events` (all payloads are plain Python / numpy):
     emotions(dict)             productivity(dict)         indexes(dict)
     calibrated(dict)           calibration_failed(str)
     baseline_progress(float)   baseline(dict)             cardio(dict)
-    error(str)
+    reconnected()              error(str)
+
+Reconnect: after a drop (state DISCONNECTED) `reconnect()` connects the same headset again and
+returns to where it was: LIVE (calibration + baseline re-imported into the SDK classifiers),
+CALIBRATED, or STREAMING. The session keeps going in the same folder.
 """
 import logging
 import os
@@ -41,21 +45,25 @@ class State:
 
 
 _STOPPABLE = {State.STREAMING, State.CALIBRATING, State.CALIBRATED, State.BASELINE,
-              State.LIVE, State.DISCONNECTED}
+              State.LIVE, State.DISCONNECTED, State.CONNECTING}
 
 TRANSITIONS = {
     State.IDLE:          {State.SCANNING},
     State.SCANNING:      {State.DEVICES_FOUND, State.IDLE},
     State.DEVICES_FOUND: {State.SCANNING, State.CONNECTING},
-    State.CONNECTING:    {State.STREAMING, State.DEVICES_FOUND},
+    State.CONNECTING:    {State.STREAMING, State.DEVICES_FOUND, State.CALIBRATED, State.LIVE,
+                          State.DISCONNECTED, State.STOPPED},
     State.STREAMING:     {State.CALIBRATING, State.CALIBRATED, State.DISCONNECTED, State.STOPPED},
     State.CALIBRATING:   {State.CALIBRATED, State.STREAMING, State.DISCONNECTED, State.STOPPED},
     State.CALIBRATED:    {State.BASELINE, State.LIVE, State.CALIBRATING, State.DISCONNECTED, State.STOPPED},
     State.BASELINE:      {State.LIVE, State.CALIBRATED, State.DISCONNECTED, State.STOPPED},
     State.LIVE:          {State.DISCONNECTED, State.STOPPED},
-    State.DISCONNECTED:  {State.STOPPED},
+    State.DISCONNECTED:  {State.CONNECTING, State.STOPPED},
     State.STOPPED:       set(),
 }
+
+
+SIMULATOR_NAMES = ("noise", "sinwave")
 
 
 class InvalidTransition(RuntimeError):
@@ -134,6 +142,8 @@ class CapsuleEngine:
         self._retry_at = None
         self._calibration_deadline = None
         self._baseline_deadline = None
+        self._resume_to = None              # set while reconnecting after a drop
+        self.reconnects = 0
         self._last_psd = -1e9
         self._psd_bins = None               # (indices, freqs) of 1-30 Hz bins, cached
         self._calibrator = self._productivity = self._emotions = self._cardio = None
@@ -187,6 +197,23 @@ class CapsuleEngine:
             self._wire_device_callbacks()
         self._attempt_connect()
 
+    @property
+    def reconnecting(self):
+        return self._resume_to is not None
+
+    def reconnect(self):
+        """Connect the same headset again after a drop and resume (see module docstring)."""
+        self.flow.require(State.DISCONNECTED)
+        if self.device is None:
+            raise InvalidTransition("no device to reconnect")
+        self._resume_to = (State.LIVE if self.baseline else State.CALIBRATED if self.calibration
+                           else State.STREAMING)
+        self.flow.go(State.CONNECTING)
+        self._connect_attempt = 0
+        self._retry_at = None
+        self.events.emit("status", "Reconnecting to the headphones...")
+        self._attempt_connect()
+
     def start_calibration(self):
         self.flow.require(State.STREAMING, State.CALIBRATED)
         self.flow.go(State.CALIBRATING)
@@ -231,6 +258,8 @@ class CapsuleEngine:
             self._productivity.reset_accumulated_fatigue()
 
     def stop(self):
+        self._resume_to = None
+        self._retry_at = None
         if self.state in _STOPPABLE:
             self.flow.go(State.STOPPED)
         if self.device is not None:
@@ -261,6 +290,11 @@ class CapsuleEngine:
             delay = config.CONNECT_RETRY_DELAYS_S[self._connect_attempt - 1]
             self.events.emit("status", f"Connection failed ({why}); retrying in {delay} s...")
             self._retry_at = self._clock() + delay
+        elif self._resume_to is not None:
+            self._resume_to = None
+            self.flow.go(State.DISCONNECTED)
+            self.events.emit("error", f"Could not reconnect after {self._connect_attempt} attempts ({why}). "
+                                      "Check the headphones are on, then press Reconnect.")
         else:
             self.flow.go(State.DEVICES_FOUND)
             self.events.emit("error", f"Could not connect after {self._connect_attempt} attempts ({why}).")
@@ -299,6 +333,9 @@ class CapsuleEngine:
         names = self.device.get_channel_names()
         self.channel_names = [names.get_name_by_index(i) for i in range(len(names))]
         self.device.start()
+        if self._resume_to is not None:
+            self._resume_after_reconnect()
+            return
         self.sample_rate = self.device.get_eeg_sample_rate()
         try:
             info = self.device.get_info()
@@ -309,6 +346,37 @@ class CapsuleEngine:
                                 sdk_version=self.sdk_version, simulated=bool(self.simulate))
         self.flow.go(State.STREAMING)
         self.events.emit("connected", dict(self.device_info))
+
+    def _resume_after_reconnect(self):
+        """Put the saved calibration / baseline back into the classifiers and return to the old state."""
+        from .capsule_sdk.Calibrator import IndividualNFBData
+        from .capsule_sdk.Productivity import Productivity_Baselines
+        target, self._resume_to = self._resume_to, None
+        try:
+            if target in (State.CALIBRATED, State.LIVE) and self.calibration:
+                c = self.calibration
+                self._calibrator.import_alpha(IndividualNFBData(
+                    individual_frequency=c.get("iaf") or c.get("individual_frequency") or 10.0,
+                    individual_peak_frequency=c.get("iapf") or 10.0,
+                    individual_peak_frequency_power=c.get("peak_power") or c.get("individual_peak_frequency_power") or 1.0,
+                    individual_peak_frequency_suppression=c.get("suppression") or
+                    c.get("individual_peak_frequency_suppression") or 2.0,
+                    individual_bandwidth=c.get("bandwidth") or c.get("individual_bandwidth") or 6.0,
+                    individual_normalized_power=c.get("normalized_power") or c.get("individual_normalized_power") or 0.5,
+                    lower_frequency=c.get("lower_frequency") or 7.0, upper_frequency=c.get("upper_frequency") or 13.0))
+            if target == State.LIVE and self.baseline:
+                b = self.baseline
+                self._productivity.import_baselines(Productivity_Baselines(
+                    concentration=b["concentration"], fatigue=b["fatigue"], gravity=b["gravity"],
+                    productivity=b["productivity"], relax=b["relaxation"], reverse_fatigue=b["reverse_fatigue"],
+                    timestamp=0))
+        except Exception:
+            logger.exception("re-import after reconnect failed; continuing with the SDK's own state")
+        self.reconnects += 1
+        self.flow.go(target)
+        self.events.emit("connected", dict(self.device_info))
+        self.events.emit("reconnected")
+        self.events.emit("status", "Reconnected. The session continues.")
 
     def _wire_device_callbacks(self):
         d = self.device
@@ -343,9 +411,11 @@ class CapsuleEngine:
                 self._on_connected()
             except Exception as exc:
                 logger.exception("setup after connect failed")
-                self.flow.go(State.DEVICES_FOUND)
+                resuming, self._resume_to = self._resume_to is not None, None
+                if self.state == State.CONNECTING:
+                    self.flow.go(State.DISCONNECTED if resuming else State.DEVICES_FOUND)
                 self.events.emit("error", f"Connected but setup failed: {exc}")
-        elif status == 0 and self.state in _STOPPABLE - {State.DISCONNECTED}:
+        elif status == 0 and self.state in _STOPPABLE - {State.DISCONNECTED, State.CONNECTING}:
             self.flow.go(State.DISCONNECTED)
             self.events.emit("disconnected")
         elif status == 2:
@@ -413,7 +483,8 @@ class CapsuleEngine:
             return
         fail = _int(d.failReason)
         data = {"fail_reason": fail, "iapf": d.individualPeakFrequency, "iaf": d.individualFrequency,
-                "peak_power": d.individualPeakFrequencyPower, "bandwidth": d.individualBandwidth,
+                "peak_power": d.individualPeakFrequencyPower, "suppression": d.individualPeakFrequencySuppression,
+                "bandwidth": d.individualBandwidth,
                 "normalized_power": d.individualNormalizedPower,
                 "lower_frequency": d.lowerFrequency, "upper_frequency": d.upperFrequency, "imported": False}
         if fail == 0:

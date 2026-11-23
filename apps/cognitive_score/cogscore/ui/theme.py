@@ -17,6 +17,7 @@ BORDER = "#2c2c2a"
 SERIES = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9"]
 METRIC_COLOURS = {"attention": SERIES[0], "stress": SERIES[1], "cognitive_load": SERIES[2]}
 BAND_COLOUR = SERIES[6]      # one hue for the band chart; bands are named on the axis
+SCENE = SERIES[6]           # demo scenes (timeline spans, scene panel); not used by any timeline line
 
 # Status colours are reserved for state and always shown with a text label or icon.
 GOOD, WARNING, SERIOUS, CRITICAL = "#0ca30c", "#fab219", "#ec835a", "#d03b3b"

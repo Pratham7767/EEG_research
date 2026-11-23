@@ -44,10 +44,15 @@ class BreakRule:
     6/10 within 3 minutes.)
     """
 
-    def __init__(self, start, fatigue_score=config.FATIGUE_BREAK_SCORE,
-                 sustain_s=config.FATIGUE_BREAK_SUSTAIN_S, min_live_s=config.FATIGUE_MIN_LIVE_S,
-                 work_block_s=config.WORK_BLOCK_S, cooldown_s=config.BREAK_COOLDOWN_S,
-                 min_break_s=config.MIN_BREAK_S):
+    def __init__(self, start, fatigue_score=None, sustain_s=None, min_live_s=None,
+                 work_block_s=None, cooldown_s=None, min_break_s=None):
+        # Defaults are read now (not at import), so the demo / real mode switch applies.
+        fatigue_score = config.FATIGUE_BREAK_SCORE if fatigue_score is None else fatigue_score
+        sustain_s = config.FATIGUE_BREAK_SUSTAIN_S if sustain_s is None else sustain_s
+        min_live_s = config.FATIGUE_MIN_LIVE_S if min_live_s is None else min_live_s
+        work_block_s = config.WORK_BLOCK_S if work_block_s is None else work_block_s
+        cooldown_s = config.BREAK_COOLDOWN_S if cooldown_s is None else cooldown_s
+        min_break_s = config.MIN_BREAK_S if min_break_s is None else min_break_s
         self.start = start
         self.fatigue_score, self.sustain_s, self.min_live_s = fatigue_score, sustain_s, min_live_s
         self.work_block_s, self.cooldown_s, self.min_break_s = work_block_s, cooldown_s, min_break_s
@@ -103,9 +108,10 @@ class StressEpisodes:
     """Hysteresis detector: an episode starts when the score stays ≥ `on` for `hold_s`
     and ends when it stays < `off` for `hold_s`. Episodes are [start, end] in session seconds."""
 
-    def __init__(self, on=config.STRESS_EPISODE_ON, off=config.STRESS_EPISODE_OFF,
-                 hold_s=config.STRESS_EPISODE_HOLD_S):
-        self.on, self.off, self.hold_s = on, off, hold_s
+    def __init__(self, on=None, off=None, hold_s=None):
+        self.on = config.STRESS_EPISODE_ON if on is None else on
+        self.off = config.STRESS_EPISODE_OFF if off is None else off
+        self.hold_s = config.STRESS_EPISODE_HOLD_S if hold_s is None else hold_s
         self.active = False
         self.episodes = []
         self._candidate = None
@@ -144,8 +150,8 @@ class StressEpisodes:
 class SelfReportScheduler:
     """Due every `interval_s` since the session started or the last answer."""
 
-    def __init__(self, start, interval_s=config.SELF_REPORT_INTERVAL_S):
-        self.interval_s = interval_s
+    def __init__(self, start, interval_s=None):
+        self.interval_s = config.SELF_REPORT_INTERVAL_S if interval_s is None else interval_s
         self._last = start
         self._pending = False
 

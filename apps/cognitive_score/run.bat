@@ -1,5 +1,5 @@
 @echo off
-REM Double-click: start the session monitor with the real Capsule headphones.
+REM Double-click: start window (choose Demo or Real use) with the real Capsule headphones.
 cd /d "%~dp0"
-python app.py %*
+call "%~dp0_python.bat" app.py %*
 if errorlevel 1 pause
