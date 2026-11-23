@@ -24,11 +24,12 @@ def main(argv=None):
     ap.add_argument("--fast", action="store_true", help="offer imported calibration/baseline (simulator only)")
     ap.add_argument("--record-eeg", action="store_true", help="also save raw + processed EEG (eeg.csv)")
     ap.add_argument("--selftest", action="store_true", help="run the whole UI flow automatically (simulator)")
-    ap.add_argument("--selftest-live", type=float, default=30, help="seconds of live session in --selftest")
+    ap.add_argument("--selftest-live", type=float, default=40, help="seconds of live session in --selftest")
     ap.add_argument("--screenshots", help="with --selftest: save a PNG of every step to this folder")
     ap.add_argument("--sessions", default=config.SESSIONS_DIR, help="folder for session recordings")
     ap.add_argument("--no-sound", action="store_true")
     ap.add_argument("--fullscreen", action="store_true", help="start full screen (F11 toggles)")
+    ap.add_argument("--no-stress-break", action="store_true", help="turn the full-screen stress break off")
     args = ap.parse_args(argv)
 
     if args.selftest:
@@ -52,9 +53,11 @@ def main(argv=None):
         picked = choose(args.sessions, args.simulate)
         if picked is None:
             return 0
-        args.mode, replay = picked
+        args.mode, replay, stress_break = picked
         args.replay = args.replay or replay
+        args.no_stress_break = args.no_stress_break or not stress_break
     config.apply_mode(args.mode)
+    config.STRESS_BREAK_ENABLED = not args.no_stress_break
     logging.getLogger(__name__).info("mode=%s replay=%s simulate=%s", args.mode, args.replay, args.simulate)
 
     from cogscore.monitor import Monitor
@@ -102,7 +105,8 @@ def _relaunch_argv(argv, mode):
         if a.startswith(("--mode=", "--replay=")):
             continue
         out.append(a)
-    return out + ["--mode", mode]
+    return out + ["--mode", mode] + (["--no-stress-break"] if not config.STRESS_BREAK_ENABLED
+                                     and "--no-stress-break" not in out else [])
 
 
 if __name__ == "__main__":

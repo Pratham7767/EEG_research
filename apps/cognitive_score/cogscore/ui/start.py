@@ -19,7 +19,7 @@ DESCRIPTIONS = {
 
 
 class StartWindow(ctk.CTk):
-    """Returns `.choice` = ("demo" | "real", replay_path or None), or None if closed."""
+    """Returns `.choice` = ("demo" | "real", replay_path or None, stress_break_on), or None if closed."""
 
     def __init__(self, sessions_root=config.SESSIONS_DIR, simulate=None):
         super().__init__()
@@ -38,8 +38,11 @@ class StartWindow(ctk.CTk):
         for mode in ("demo", "real"):
             self._card(row, mode).pack(side="left", padx=8, anchor="n")
 
+        self.stress_var = ctk.BooleanVar(value=True)
+        ctk.CTkSwitch(self, text="Full-screen stress break (opens when stress stays high)", variable=self.stress_var,
+                      font=theme.font(13), text_color=theme.INK_2).pack(anchor="w", padx=32, pady=(18, 0))
         self.replay_row = ctk.CTkFrame(self, fg_color="transparent")
-        self.replay_row.pack(fill="x", padx=32, pady=(18, 22))
+        self.replay_row.pack(fill="x", padx=32, pady=(14, 22))
         self._build_replay()
         self.bind("<Escape>", lambda _e: self.quit())
         self.protocol("WM_DELETE_WINDOW", self.quit)
@@ -77,11 +80,11 @@ class StartWindow(ctk.CTk):
                       border_width=1, border_color=theme.BORDER, command=self._replay).pack(side="left")
 
     def _pick(self, mode):
-        self.choice = (mode, None)
+        self.choice = (mode, None, bool(self.stress_var.get()))
         self.quit()
 
     def _replay(self):
-        self.choice = ("demo", self._sessions[self.replay_var.get()])
+        self.choice = ("demo", self._sessions[self.replay_var.get()], bool(self.stress_var.get()))
         self.quit()
 
     def close(self):

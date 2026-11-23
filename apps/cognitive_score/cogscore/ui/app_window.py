@@ -6,7 +6,6 @@ engine and monitor callbacks arrive on the UI thread.
 import logging
 import os
 import sys
-import threading
 import time
 
 import customtkinter as ctk
@@ -14,6 +13,7 @@ import customtkinter as ctk
 from .. import config
 from ..engine import State
 from . import theme
+from .screen import cover, monitor_rect, window_rect
 from .steps import STEP_NAMES, STEPS
 
 logger = logging.getLogger(__name__)
@@ -48,12 +48,16 @@ class App(ctk.CTk):
         self.configure(fg_color=theme.PAGE)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.bind("<F11>", lambda _e: self.toggle_fullscreen())
-        self.bind("<Escape>", lambda _e: self.toggle_fullscreen(False))
+        self.bind("<Control-b>", lambda _e: self._manual_stress_break())
+        self.bind("<Control-B>", lambda _e: self._manual_stress_break())
+        self.bind("<Escape>", lambda _e: self._on_escape())
         self._fullscreen = False
         if fullscreen:
             self.after(300, lambda: self.toggle_fullscreen(True))
         self._closing = False
         self._pump_count = 0
+        from ..sound import Sound
+        self.sounds = Sound(BEEPS, enabled=sound)          # laptop speakers, never the EEG headset
         self._build()
         self.steps = []
         self.index = -1
@@ -164,12 +168,24 @@ class App(ctk.CTk):
                                   text_color=theme.INK_2)
 
     def toggle_fullscreen(self, on=None):
-        """F11: full screen for a projector; Esc leaves it."""
+        """F11: full screen for a projector; Esc leaves it. Not Tk's "-fullscreen": at 125 % display
+        scaling it covered only 80 % of the screen (see screen.py)."""
         on = (not self._fullscreen) if on is None else on
         if on == self._fullscreen:
             return
         self._fullscreen = on
-        self.attributes("-fullscreen", on)
+        if on:
+            rect = monitor_rect(self)
+            if sys.platform == "win32":
+                self.state("normal")
+            cover(self, rect)
+        else:
+            import tkinter as tk
+            tk.Wm.wm_overrideredirect(self, False)
+            if sys.platform == "win32":
+                self.state("zoomed")
+        self.lift()
+        self.focus_force()
         self.full_btn.configure(text="Exit full screen  (Esc)" if on else "Full screen  (F11)")
 
     # ── disconnect / reconnect ───────────────────────────────────
@@ -207,20 +223,27 @@ class App(ctk.CTk):
         else:
             self.reconnect_btn.pack_forget()
 
+    def _on_escape(self):
+        """Esc: the stress break screen first (a borderless window may not get the keyboard on Windows,
+        so Esc can arrive here), otherwise leave full screen."""
+        screen = getattr(self.step, "_stress_screen", None)
+        if screen is not None and screen.winfo_exists():
+            screen.escape()
+        else:
+            self.toggle_fullscreen(False)
+
+    def _manual_stress_break(self):
+        if self.demo and hasattr(self.step, "manual_stress_break"):
+            self.step.manual_stress_break()
+
     def new_session(self):
         """Close this session and start a fresh window (one headset connection per process)."""
         self.relaunch = True
         self.on_close()
 
     def beep(self, kind):
-        if not self.sound or sys.platform != "win32":
-            return
-
-        def _play():
-            import winsound
-            for freq, ms in BEEPS.get(kind, []):
-                winsound.Beep(freq, ms)
-        threading.Thread(target=_play, daemon=True).start()
+        if self.sound:
+            self.sounds.play(kind)
 
     # ── SDK pump and shutdown ────────────────────────────────────
     def _pump(self):
@@ -250,6 +273,7 @@ class App(ctk.CTk):
             if self.engine.state != State.STOPPED:
                 self.engine.stop()
             self.monitor.close()
+            self.sounds.close()
         except Exception:
             logger.exception("error while closing")
         finally:
@@ -368,6 +392,36 @@ class Autopilot:
                     live.start_scene("eyes_closed", duration=6)
                 if app.demo and since > 22 and self._once("scene_shot"):
                     self._shot("5e_scene")
+                if since > 27 and self._once("sb_open"):
+                    app.monitor.request_stress_break("manual")
+                if since > 28.5 and self._once("sb_prompt_shot"):
+                    scr = live._stress_screen
+                    if scr is None or not scr.winfo_exists():
+                        self.result = "FAIL: stress break screen did not open"
+                    else:
+                        scr.update()
+                        got, want = window_rect(scr), monitor_rect(app)
+                        self.say(f"stress break screen {got}, monitor {want}")
+                        if got != want:
+                            self.result = f"FAIL: stress break screen {got} does not cover the monitor {want}"
+                        self._shot("5f_stress_prompt", window=scr)
+                        scr.start(length_s=6)
+                if since > 31.2 and self._once("sb_breath_shot") and live._stress_screen is not None:
+                    self._shot("5g_stress_breathing", window=live._stress_screen)
+                if since > 34 and self._once("sb_done"):
+                    scr = live._stress_screen
+                    if scr is not None and scr.winfo_exists():
+                        self._shot("5h_stress_done", window=scr)
+                        scr.close()
+                if since > 36 and self._once("f11_on"):
+                    app.toggle_fullscreen(True)
+                if since > 37 and self._once("f11_check"):
+                    app.update()
+                    got, want = window_rect(app), monitor_rect(app)
+                    self.say(f"F11 window {got}, monitor {want}")
+                    if got != want:
+                        self.result = f"FAIL: F11 full screen {got} does not cover the monitor {want}"
+                    app.toggle_fullscreen(False)
                 if since > self.live_seconds:
                     self._shot("5_live")
                     # forced drop + automatic reconnect (simulator only; a replay cannot drop)
@@ -409,10 +463,13 @@ class Autopilot:
         problems = check_session(s["session_path"]) if s["session_path"] else ["no session folder"]
         if not s["markers"]:
             problems.append("marker not recorded")
-        if len(s["breaks"]) != 1 or s["breaks"][0][1] is None:
-            problems.append(f"break not recorded correctly: {s['breaks']}")
+        if len(s["breaks"]) != 2 or any(end is None for _start, end in s["breaks"]):    # manual + stress break
+            problems.append(f"breaks not recorded correctly: {s['breaks']}")
         if [k for _, k in s["self_reports_kss"]] != [5]:
             problems.append(f"KSS not recorded: {s['self_reports_kss']}")
+        sb = s.get("stress_breaks") or []
+        if len(sb) != 1 or sb[0]["action"] != "start" or self.app.monitor.in_break:
+            problems.append(f"stress break not recorded correctly: {sb}")
         if self.app.demo and not (s.get("scenes") or {}).get("by_kind"):
             problems.append("demo scene not recorded")
         if self.app.simulate and getattr(self.app.engine, "device", None) is not None and not s["disconnects"]:

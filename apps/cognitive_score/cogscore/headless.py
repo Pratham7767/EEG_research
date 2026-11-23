@@ -213,6 +213,7 @@ def main(argv=None):
     print(f"session: {path}")
     print(f"artifact fraction: {summary['artifact_fraction']}, raw windows rejected: {summary['raw_windows_rejected']}, "
           f"ppg: {summary['ppg_detected']}")
+    print("stress break prompts:", [(b["t"], b["trigger"], b["stress"]) for b in summary.get("stress_breaks", [])])
     print("mean scores:", {k: round(v['mean'], 1) for k, v in summary['scores'].items() if v['mean'] == v['mean']})
     print("mean band share:", {k: round(v, 3) for k, v in summary['bands_rel_mean'].items() if v == v})
     for p in problems:

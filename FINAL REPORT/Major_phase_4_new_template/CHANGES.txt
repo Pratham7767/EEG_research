@@ -1,0 +1,71 @@
+CHANGES MADE TO MOVE THE REPORT TO THE UPDATED 2025-26 TEMPLATE  (23 Nov 2026)
+==========================================================================
+Old report  : ..\Major_phase_4_draft            (not touched)
+New report  : this folder
+Overleaf    : New Project -> Upload Project -> Major_phase_4_new_template_overleaf.zip
+              Main file main_report.tex, compiler pdfLaTeX. Compiles with 0 errors, 88 pages.
+
+NOT CHANGED (byte-for-byte the same as the old report)
+  main_report.tex, abstract.tex, introduction.tex, literature_review.tex,
+  technical_description.tex, results.tex, conclusion.tex, bibliography.tex,
+  every figure, Logo.png, ProjectEvaluationRubrics.tex (same as template),
+  PlanofAction.tex / budgetanalysis.tex / SDG.tex (empty, as before).
+  The main file's settings (page size, margins, headers, footers) were already the
+  same as the new template, so it was left as it was.
+
+1. COVER PAGE (cover_page.tex)
+   - "Major Project Report (Phase-IV)on" is now "Project Report on", as in the template.
+   - "submitted in partial fulfillment of the completion of VII semester of" is now
+     "submitted in partial fulfillment of the completion of", as in the template.
+   - USNs are now shown in brackets, e.g. (1SI23EC079), as in the template.
+   - The two guides are laid out as in the template's two-guide cover page:
+     "under the guidance of" above each guide, side by side.
+   - The extra negative spacing used before was removed; the page still fits on one page.
+
+2. CERTIFICATE (certificate.tex)
+   - Logo is now full size, as in the template (it was shrunk to 40% before).
+   - Wording follows the new template: "in partial fulfillment for the completion of
+     Bachelor of Engineering in ..." (the words "VII Semester of" were removed from the
+     first sentence; the last sentence still says "completion of VII semester").
+   - A PRINCIPAL signature block was added (the template has it; the old page did not).
+   - Signature block now follows the template's two-guide layout in one row:
+     Guide 1 | Guide 2 | HoD (E&CE) | HoD (E&TE) | Principal. It is set in slightly
+     smaller type so that all five fit across the page.
+   - "External viva / Names of the Examiners / Signature with date / 1. / 2." is laid
+     out as in the template.
+   - The whole certificate fits on one page.
+
+3. ACKNOWLEDGEMENT (acknowledgement.tex)
+   - The HoD's name spelling was changed from "Dr. R Kumarswamy" to
+     "Dr. R Kumaraswamy", which is how the template spells it. Nothing else changed.
+
+4. COURSE OUTCOMES (CourseOutcomes.tex) - replaced with the new template's page
+   - The new CO-PO mapping table from the template is used. Its marks differ from the
+     old one: CO-4 now maps to PO6 and PO7, CO-8 and CO-9 to PO9, CO-10 to PO7,
+     CO-11 to PO8.
+   - The small "Program Specific Outcomes (PSOs)" paragraph at the end of the old page
+     is not in the new template, so it was dropped. The same PSO1/PSO2 text still
+     appears in Appendix A.
+   - The page is more compact now (3 pages of front matter instead of 4).
+   - Three small fixes to the template file so that it compiles cleanly:
+     "&" written as "\&" in PO4, PO5 and PO7 (a bare & gives an error in LaTeX),
+     the table had one empty extra column, which was removed, and a line break was
+     added so that "Program Outcomes (POs)" starts on its own line.
+
+5. APPENDIX (appendix.tex)
+   - Appendix A heading renamed from "Program Outcomes and Program Specific Outcomes
+     addressed" to "Self Assessment of the project", as in the template. The table and
+     every entry in it are unchanged.
+   - Appendix B (Sustainable Development Goals addressed) now follows the template's
+     order: the SDG table first, then the Level 1/2/3 meanings, then the list of 17
+     SDGs. Your table and its entries are unchanged.
+   - A "Note:" was added at the end, as the template has, giving the official UN
+     wording of the three targets your table uses (3.d, 4.a, 8.5). Delete it if not
+     wanted.
+   - The Appendix B title is split over two lines because it was running into the
+     right margin (this was already the case in the old report).
+
+NOT ADDED (template has them, but they would need new content from you)
+   - Template appendices "Data Sheet of component 1 / 2". If needed, add the
+     datasheets of the GELO headset, Jetson Orin Nano and Waveshare LCD as new
+     \chapter{...} entries before \end{appendices} in appendix.tex.

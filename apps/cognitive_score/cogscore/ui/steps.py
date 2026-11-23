@@ -10,7 +10,8 @@ from .. import config
 from ..engine import State
 from ..monitor import COMPARE, scene_rows
 from . import theme
-from .widgets import (BandPlot, Card, EEGPlot, ElectrodeTile, HeroMetric, KSSDialog, SmallMeter, TimelinePlot,
+from .break_screen import StressBreakScreen
+from .widgets import (BandPlot, BreakMeterCard, Card, EEGPlot, ElectrodeTile, HeroMetric, KSSDialog, SmallMeter, TimelinePlot,
                       fmt_int, legend_row, valid)
 
 
@@ -453,9 +454,14 @@ class LiveStep(Step):
         self.hero = {k: HeroMetric(heroes, label, theme.METRIC_COLOURS[k])
                      for k, label in (("attention", "Attention"), ("cognitive_load", "Cognitive load"),
                                       ("stress", "Stress"))}
-        for i, card in enumerate(self.hero.values()):
+        cards = list(self.hero.values())
+        self.meter_card = None
+        if config.STRESS_BREAK_ENABLED:
+            self.meter_card = BreakMeterCard(heroes)
+            cards.append(self.meter_card)
+        for i, card in enumerate(cards):
             heroes.grid_columnconfigure(i, weight=1, uniform="hero")
-            card.grid(row=0, column=i, sticky="nsew", padx=(0 if i == 0 else 6, 0 if i == 2 else 6))
+            card.grid(row=0, column=i, sticky="nsew", padx=(0 if i == 0 else 6, 0 if i == len(cards) - 1 else 6))
 
         charts = ctk.CTkFrame(self.body, fg_color="transparent")
         charts.pack(fill="both", expand=True, pady=(12, 0))
@@ -485,6 +491,7 @@ class LiveStep(Step):
         self._last_snap = None
         self._last_count = None
         self._switching = False
+        self._stress_screen = None
 
     def enter(self):
         self.app.set_next(False, visible=False)
@@ -493,6 +500,7 @@ class LiveStep(Step):
         self.sub(self.monitor.events, "self_report_due", self.open_kss)
         self.sub(self.monitor.events, "stress_episode", self._on_stress_episode)
         self.sub(self.monitor.events, "scene", self._on_scene)
+        self.sub(self.monitor.events, "stress_break", self.open_stress_break)
         self.sub(self.engine.events, "disconnected", self._on_disconnected)
         self.sub(self.engine.events, "reconnected", self._on_reconnected)
         self.sub(self.engine.events, "replay_break", self._on_replay_break)     # the Monitor handles scenes/markers
@@ -538,6 +546,26 @@ class LiveStep(Step):
     def end_scene(self):
         self.monitor.end_scene()
 
+    def open_stress_break(self, info):
+        if self._stress_screen is not None and self._stress_screen.winfo_exists():
+            return
+        if self._banner_kind == "suggest":
+            self._hide_banner()
+        self._stress_screen = StressBreakScreen(self.app, info)
+        self.break_btn.configure(text="Take a break")
+        self.after(500, self._watch_stress_screen)
+
+    def _watch_stress_screen(self):
+        """Keep the Break button in step with a break started / ended from the break screen."""
+        self.break_btn.configure(text="Resume" if self.monitor.in_break else "Take a break")
+        if self._stress_screen is not None and self._stress_screen.winfo_exists():
+            self.after(500, self._watch_stress_screen)
+
+    def manual_stress_break(self):
+        """Ctrl+B (demo mode only): open the break screen on demand; logged as "manual"."""
+        if self.app.demo and not self.monitor.in_break:
+            self.monitor.request_stress_break("manual")
+
     def open_kss(self):
         if self._kss_dialog is None or not self._kss_dialog.winfo_exists():
             self.app.beep("prompt")
@@ -549,6 +577,8 @@ class LiveStep(Step):
         self.leave()
         if self._kss_dialog is not None and self._kss_dialog.winfo_exists():
             self._kss_dialog.destroy()
+        if self._stress_screen is not None and self._stress_screen.winfo_exists():
+            self._stress_screen.close()
         self.app.finish_session()
 
     # events
@@ -562,6 +592,18 @@ class LiveStep(Step):
             flag = "Stress episode" if key == "stress" and s["stress_episode"] else None
             card.set(s[key] if ready else math.nan, s["levels"][key] if ready else wait_text,
                      dim=s["signal_poor"], flag=flag)
+        if self.meter_card is not None:
+            quiet = int(s.get("break_meter_quiet_s") or 0)
+            if not ref_ready:
+                self.meter_card.set(math.nan, wait_text)
+            elif self.monitor.stress_screen_open or s["in_break"]:
+                self.meter_card.set(s["break_meter"], "On a break", waiting=True)
+            elif quiet > 0:
+                self.meter_card.set(s["break_meter"], f"Paused\n{quiet // 60}:{quiet % 60:02d} left", waiting=True)
+            elif s.get("scene") and s["break_meter"] >= 100:
+                self.meter_card.set(s["break_meter"], "Break after\nthis scene")
+            else:
+                self.meter_card.set(s["break_meter"], f"Fills when\nstress ≥ {config.STRESS_METER_HIGH:.0f}")
         self.small["relaxation"].set(s["relaxation"])
         if ref_ready:
             self.small["fatigue"].set(s["fatigue"])
@@ -640,8 +682,8 @@ class LiveStep(Step):
     def _on_disconnected(self):
         self._disconnected = True
         self._draw_signal(False)
-        self._show_banner("Headphones disconnected. Reconnecting… Data so far is saved.", button=None,
-                          dismiss=False, kind="disconnect")
+        self._show_banner("Headphones disconnected. Searching for them: switch them on and the session continues "
+                          "by itself. Data so far is saved.", button=None, dismiss=False, kind="disconnect")
 
     def _on_reconnected(self):
         self._disconnected = False
@@ -738,6 +780,8 @@ class SummaryStep(Step):
             ("Stress", fmt_int(sc["stress"]["mean"]), "average" if valid(sc["stress"]["mean"]) else need),
             ("Stress episodes", str(len(s["stress_episodes"])),
              f"{s['stress_time_s'] / 60:.1f} min in total" if s["stress_episodes"] else "None"),
+            *([("Stress breaks", *_stress_break_tile(s.get("stress_breaks") or []))]
+              if config.STRESS_BREAK_ENABLED or s.get("stress_breaks") else []),
             ("Signal", f"{100 - 100 * s['artifact_fraction']:.0f}%",
              "clean" + (f" · {_plural(len(s['disconnects']), 'drop')}" if s.get("disconnects") else "")),
         ]
@@ -787,6 +831,13 @@ class SummaryStep(Step):
     def open_folder(self):
         if self.summary and self.summary["session_path"]:
             os.startfile(self.summary["session_path"])
+
+
+def _stress_break_tile(breaks):
+    taken = [b for b in breaks if b.get("action") == "start"]
+    drops = [b["after"] - b["before"] for b in taken if valid(b.get("before")) and valid(b.get("after"))]
+    sub = f"{len(taken)} taken" + (f" · {sum(drops) / len(drops):+.0f} stress" if drops else "")
+    return str(len(breaks)), (sub if breaks else "None")
 
 
 def _plural(n, word):

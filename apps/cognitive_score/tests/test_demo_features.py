@@ -190,3 +190,89 @@ def test_replay_refuses_a_session_without_live_part(tmp_path):
     (d / "events.csv").write_text("unix_time,elapsed_s,kind,detail\n1,0,connected,\n", encoding="utf-8")
     with pytest.raises(ReplayError):
         ReplayEngine(str(d))
+
+
+# ── stress break screen (rule + monitor flow) ────────────────────
+from cogscore.rules import StressBreakRule  # noqa: E402
+
+
+def _feed(r, t0, t1, stress, **kw):
+    fired = []
+    for t in range(t0, t1 + 1):
+        if r.update(t, stress, **kw):
+            fired.append(t)
+    return fired
+
+
+def test_break_meter_fills_drains_and_opens_once():
+    r = StressBreakRule(high=80, low=65, fill_s=120, drain_s=240, cooldown_s=1200, snooze_s=600)
+    assert _feed(r, 0, 60, 90) == [] and r.level == pytest.approx(0.5)
+    assert _feed(r, 61, 90, 72) == [] and r.level == pytest.approx(0.5, abs=0.01)    # 65-80: stays put
+    assert _feed(r, 91, 150, 50) == [] and r.level == pytest.approx(0.25, abs=0.01)  # low: drains
+    assert _feed(r, 151, 200, float("nan")) == [] and r.level == pytest.approx(0.25, abs=0.01)  # bad signal
+    fired = _feed(r, 201, 400, 90)
+    assert len(fired) == 1 and 289 <= fired[0] <= 292          # 0.25 + 90 s / 120 s = full; fires once
+    t = fired[0]
+    r.respond(t, "dismiss")
+    assert r.level == 0 and r.quiet_left(t) == 1200
+    assert _feed(r, t + 1, t + 1199, 90) == []                 # full again, but quiet for 20 min
+    assert r.update(t + 1200, 90)
+    r.respond(t + 1200, "snooze")
+    assert _feed(r, t + 1201, t + 1799, 90) == [] and r.update(t + 1800, 90)
+
+
+def test_break_meter_scene_break_and_screen():
+    r = StressBreakRule(high=80, low=65, fill_s=10, drain_s=20, cooldown_s=60, snooze_s=30)
+    assert _feed(r, 0, 20, 90, can_open=False) == [] and r.level == 1.0   # fills during a scene ...
+    assert r.update(21, 90)                                                # ... opens right after it
+    r2 = StressBreakRule(high=80, low=65, fill_s=10, drain_s=20, cooldown_s=60, snooze_s=30)
+    assert _feed(r2, 0, 20, 90, in_break=True) == [] and r2.level == 0     # no filling on a break
+    _feed(r2, 21, 26, 90)
+    assert _feed(r2, 27, 40, 90, frozen=True) == [] and r2.level == pytest.approx(0.6)   # screen open
+
+
+def test_stress_break_fires_and_records_before_after(demo, rig):
+    clock, engine, mon, got = rig
+    opened = []
+    mon.events.subscribe("stress_break", opened.append)
+    go_live_real(clock, engine, mon)
+    run(clock, engine, config.WORK_REF_S + 5, tick=mon.tick)            # reference at the normal level
+    assert mon.reference_ready and not opened
+    run(clock, engine, 60, psd=spectrum(high_beta=3.0), tick=mon.tick)   # arousal x3 → stress ~ 90
+    assert len(opened) == 1 and opened[0]["trigger"] == "auto" and opened[0]["stress"] >= 70
+    mon.stress_screen_open = True                                       # UI shows the screen
+    mon.stress_break_response("start")
+    assert mon.in_break
+    run(clock, engine, 40, tick=mon.tick)                               # breathing: back to normal level
+    done = mon.stress_break_done()
+    mon.stress_screen_open = False
+    assert not mon.in_break and done["before"] > done["after"]
+    run(clock, engine, 30, psd=spectrum(high_beta=3.0), tick=mon.tick)
+    assert len(opened) == 1                                             # cooldown (2 min in demo)
+    s = mon.summary()
+    assert s["stress_breaks"][0]["action"] == "start" and ("Stress break" in [m[1] for m in s["markers"]])
+
+
+def test_stress_break_never_during_scene_or_when_disabled(demo, rig):
+    clock, engine, mon, got = rig
+    opened = []
+    mon.events.subscribe("stress_break", opened.append)
+    go_live_real(clock, engine, mon)
+    run(clock, engine, config.WORK_REF_S + 5, tick=mon.tick)
+    mon.start_scene("mental_math", duration=60)
+    run(clock, engine, 55, psd=spectrum(high_beta=3.0), tick=mon.tick)
+    assert not opened and mon.snapshot()["break_meter"] == 100           # full, but a scene is running
+    mon.end_scene()
+    run(clock, engine, 1, psd=spectrum(high_beta=3.0), tick=mon.tick)
+    assert len(opened) == 1                                             # opens when the scene ends
+    mon.stress_break_response("dismiss")
+    config.STRESS_BREAK_ENABLED = False
+    try:
+        run(clock, engine, 200, psd=spectrum(high_beta=3.0), tick=mon.tick)
+        assert len(opened) == 1
+    finally:
+        config.STRESS_BREAK_ENABLED = True
+    run(clock, engine, 60, psd=spectrum(high_beta=3.0), tick=mon.tick)
+    assert len(opened) == 2
+    mon.stress_break_response("snooze")
+    assert not mon.in_break and mon.stress_breaks[-1]["action"] == "snooze"

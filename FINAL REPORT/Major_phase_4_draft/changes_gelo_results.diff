@@ -1,0 +1,187 @@
+--- orig/results.tex	2026-11-20 13:38:48.827441459 +0000
++++ src/results.tex	2026-11-20 13:41:07.116251836 +0000
+@@ -133,6 +133,24 @@
+ reported below. The same kind of mistake, an event marker read in the wrong way, is
+ something to check first whenever a classifier gives exactly 50 per cent.
+ 
++What the subjects saw on the screen is shown in Figure~\ref{fig:bci2b_screens}. In the
++first two sessions there was no feedback: a fixation cross, a short beep, then an arrow
++pointing left or right. In sessions 3 to 5 a smiley in the centre of the screen moved left
++or right according to the output of the online classifier, turning green when it moved
++the right way and red when it moved the wrong way. Left and right cues were mixed at
++random within every session and their timing was set by the software, which is an
++important difference from the way the GELO data in this project was recorded.
++
++\begin{figure}[!htbp]
++    \centering
++    \includegraphics[width=\linewidth]{bci2b_paradigm_gui.png}
++    \caption[Screens shown to the subjects of the BCI Competition IV 2b dataset]%
++            {Screens shown to the subjects of the BCI Competition IV 2b dataset, redrawn
++             from the description of the protocol~\cite{leeb2007virtual}. Top: screening
++             sessions without feedback. Bottom: feedback sessions with the moving smiley}
++    \label{fig:bci2b_screens}
++\end{figure}
++
+ Only C3 and C4 were used for the ERD/ERS and PSD analysis, since those are the two motor
+ cortex channels the GELO headset has. The classifiers were run with all three channels and
+ again with only C3 and C4, and leaving out Cz lowered the cross-subject accuracy by less
+@@ -423,9 +441,9 @@
+ \end{tabular}
+ \end{table}
+ 
+-On single trials the linear SVM reaches 65.9 per cent, which is already well above the 50
+-to 54 per cent that the same kind of model reaches when it is trained on the stroke data
+-and tested on the recorded data (Table~\ref{tab:svm_accuracy}). Averaging trials helps a great deal, raising
++On single trials the linear SVM reaches 65.9 per cent, which is already well above the
++46 to 53 per cent balanced accuracy that the same kind of model reaches when it is trained
++on the stroke data and tested on the recorded data (Table~\ref{tab:svm_recorded}). Averaging trials helps a great deal, raising
+ the accuracy to 80.6 per cent for groups of ten. The price is that one decision then needs
+ ten trials of the same hand, so this is useful for a slow, reliable command but not for
+ fast control. The linear kernel is better than the RBF kernel in every case, which is
+@@ -596,10 +614,11 @@
+ 
+ The classification side, however, is a different story. The accuracy on this dataset is
+ poor, and it stays poor no matter which of the feature sets from the previous section is
+-used. Classifiers trained on these recordings and tested on the data recorded in this
+-project reached only 50 to 54 per cent, which is reported in
+-Section~\ref{sec:recorded_results}, and the models also leaned towards one class instead
+-of splitting their errors evenly.
++used. Within the stroke dataset itself the best SVM reached a balanced accuracy of only
++53.9 per cent, and classifiers trained on these recordings and tested on the data recorded
++in this project reached a balanced accuracy of 46 to 53 per cent. Both results are
++reported in Section~\ref{sec:recorded_results}. The models using absolute power also
++leaned strongly towards one class instead of splitting their errors evenly.
+ 
+ It is worth saying plainly that this is not only a weakness of the present work. The
+ authors of the dataset report 55.6 per cent for CSP with LDA, 57.6 per cent for filter
+@@ -741,11 +760,15 @@
+     \item \textbf{SVM-C:} the C3 to C4 power ratio alone (1 feature)
+ \end{itemize}
+ 
+-The accuracies obtained are summarised in Table~\ref{tab:svm_accuracy}.
++Before testing on the recorded data, the three models were first checked on the stroke
++dataset itself. A separate model was trained for each of the 50 patients and tested with
++10-fold cross-validation on that patient's own trials (about 40 each). Table~\ref{tab:svm_accuracy}
++gives the balanced accuracy, averaged over the 50 patients, for the better of the two
++kernels.
+ 
+-\begin{table}[h]
++\begin{table}[!ht]
+ \centering
+-\caption{Classification accuracy of the trained SVM models on the recorded data}
++\caption{Balanced accuracy of the SVM models within the stroke dataset (one model per patient, 10-fold cross-validation, mean of 50 patients)}
+ \label{tab:svm_accuracy}
+ \begin{tabular}{|l|p{5.6cm}|c|c|}
+ \hline
+@@ -760,26 +783,64 @@
+ \end{tabular}
+ \end{table}
+ 
+-The figures in Table~\ref{tab:svm_accuracy} are per trial, counted over the 72 recorded
+-trials. That matters for reading them, because the two classes are not balanced: there are
+-50 right-hand and 22 left-hand trials, so a classifier that simply answered ``right'' every
+-time would score 50/72, or 69.4 per cent. All six combinations fall between 50 and 54 per
+-cent, which is not merely close to chance but below that majority-class baseline. Adding
+-the power ratio to the statistical features in SVM-B did not improve the result, and using
+-the ratio on its own in SVM-C performed worst. Using ERD power instead of absolute power
+-made very little difference either way.
+-
+-With classes this unbalanced, plain accuracy is the wrong summary, and these results
+-should be reported as balanced accuracy together with the recall for each class
+-separately [balanced accuracy: TODO; per-class recall: TODO]. Section~\ref{sec:bci2b_recorded}
+-reports the matching test for the 2b-trained model on a per-file basis instead, where the
+-15 recorded files give 15 independent decisions.
++Chance level here is 50 per cent. The best model, SVM-A with absolute power and a linear
++kernel, reached 53.9 per cent and was above chance for 35 of the 50 patients. Its
++p-value of 0.008 does not survive a correction for the 16 settings that were tried, so even
++on the stroke data the models are only slightly better than guessing. Adding the power
++ratio in SVM-B did not help, and the ratio on its own in SVM-C was at chance.
++
++The models were then trained on all the stroke recordings and tested on the 72 usable
++trials recorded with the GELO headset. Table~\ref{tab:svm_recorded} gives the results.
++Because there are 50 right-hand and 22 left-hand trials, a model that always answered
++``right'' would score 50/72, or 69.4 per cent, without having learned anything. Plain
++accuracy is therefore misleading here, and the table also gives the balanced accuracy (the
++average of the two per-class recalls), the recall for each hand separately, and the
++p-value of a permutation test with shuffled labels.
++
++\begin{table}[!ht]
++\centering
++\caption{Results of the SVM models trained on the stroke dataset and tested on the 72 recorded GELO trials (22 left, 50 right)}
++\label{tab:svm_recorded}
++\small
++\setlength{\tabcolsep}{4pt}
++\begin{tabular}{|l|l|l|c|c|c|c|c|}
++\hline
++\textbf{Model} & \textbf{Power} & \textbf{Kernel} & \textbf{Accuracy} & \textbf{Balanced} & \textbf{Left recall} & \textbf{Right recall} & \textbf{$p$} \\
++\hline
++SVM-A & Absolute & Linear & 63.9\% & 47.3\% & 4.5\%  & 90.0\%  & 0.90 \\
++SVM-A & Absolute & RBF    & 62.5\% & 46.3\% & 4.5\%  & 88.0\%  & 0.93 \\
++SVM-B & Absolute & Linear & 63.9\% & 46.0\% & 0.0\%  & 92.0\%  & 1.00 \\
++SVM-B & Absolute & RBF    & 59.7\% & 45.5\% & 9.1\%  & 82.0\%  & 0.92 \\
++SVM-C & Absolute & Linear & 69.4\% & 50.0\% & 0.0\%  & 100.0\% & 1.00 \\
++SVM-C & Absolute & RBF    & 69.4\% & 50.0\% & 0.0\%  & 100.0\% & 1.00 \\
++\hline
++SVM-A & ERD    & Linear & 55.6\% & 48.9\% & 31.8\% & 66.0\%  & 0.67 \\
++SVM-A & ERD    & RBF    & 48.6\% & 52.8\% & 63.6\% & 42.0\%  & 0.45 \\
++SVM-B & ERD    & Linear & 55.6\% & 48.9\% & 31.8\% & 66.0\%  & 0.67 \\
++SVM-B & ERD    & RBF    & 45.8\% & 53.4\% & 72.7\% & 34.0\%  & 0.38 \\
++SVM-C & ERD    & Linear & 50.0\% & 48.7\% & 45.5\% & 52.0\%  & 0.65 \\
++SVM-C & ERD    & RBF    & 47.2\% & 51.8\% & 63.6\% & 40.0\%  & 0.46 \\
++\hline
++\end{tabular}
++\end{table}
++
++None of the twelve combinations learned to tell the hands apart. The balanced accuracy
++lies between 45.5 and 53.4 per cent, and every permutation p-value is 0.38 or higher, so
++none of the results is better than chance. The models using absolute power look
++reasonable on plain accuracy, 60 to 69 per cent, but only because they answer ``right''
++for almost every trial: their right-hand recall is 82 to 100 per cent while their
++left-hand recall is 0 to 9 per cent. SVM-C with absolute power predicted ``right'' for
++every single trial, which is exactly how it scores the 69.4 per cent majority baseline.
++The models using ERD power split their answers more evenly, but they are still at chance.
++Section~\ref{sec:bci2b_recorded} reports the matching test for the 2b-trained model on a
++per-file basis, where the 15 recorded files give 15 independent decisions, with the same
++outcome.
+ 
+ This result should be read together with the benchmarks reported for the stroke dataset
+ itself, where CSP with LDA reached 55.6 per cent, filter bank CSP with an SVM reached 57.6
+ per cent and the best reported method reached 72.21 per cent, all using 30 channels on data
+ from the same recording system~\cite{liu2024mi}. Against that background, the figures in
+-Table~\ref{tab:svm_accuracy} are not surprising. Two difficulties combine here. The first
++Table~\ref{tab:svm_recorded} are not surprising. Two difficulties combine here. The first
+ is that the model is trained on one recording system and tested on another, so the feature
+ distributions do not match: the training data comes from stroke patients recorded with 30
+ saline electrodes at 500 Hz, while the test data comes from healthy subjects recorded with
+@@ -979,11 +1040,12 @@
+ 
+ The class imbalance needs stating carefully. There are 50 right-hand and 22 left-hand
+ usable trials, so always answering ``right'' would already give 69.4 per cent per trial.
+-The measured 50 to 54 per cent therefore sits below that baseline rather than being
+-explained by a drift towards the majority class, and
+-Section~\ref{sec:bci2b_recorded} found the predictions of the 2b-trained model to be split
+-roughly evenly between the two hands. Because of the imbalance, balanced accuracy is the
+-figure that should be quoted for this dataset.
++The stroke-trained models that used absolute power drifted almost entirely towards that
++majority class, which is why their plain accuracy of 60 to 69 per cent looks better than
++it is, while their balanced accuracy is 46 to 50 per cent. The 2b-trained model in
++Section~\ref{sec:bci2b_recorded} split its predictions roughly evenly between the two
++hands and was also at chance. Because of the imbalance, balanced accuracy is the figure
++that should be quoted for this dataset.
+ 
+ For the cognitive scoring, the variation between sessions is handled by referencing
+ everything to the person's own calibration. Because the scores are computed from relative
+@@ -1012,9 +1074,10 @@
+ no measurable separation. The honest reading is that the effect can be seen in individual
+ trials but has not been shown to hold across the recorded dataset.
+ 
+-Extending the method to the stroke dataset gives much weaker results. Classifiers trained
+-on that data and tested on the recorded data gave between 50 and 54 per cent across all
+-six combinations of feature set and kernel. The published benchmarks on that dataset reach
++Extending the method to the stroke dataset gives much weaker results. Within the stroke
++data the best SVM reached a balanced accuracy of 53.9 per cent, and classifiers trained on
++that data and tested on the recorded data gave a balanced accuracy between 45.5 and 53.4
++per cent across all twelve combinations of feature set, power type and kernel. The published benchmarks on that dataset reach
+ only 55 to 72 per cent even with thirty channels and matched training and test conditions,
+ so the problem itself is a hard one: the stroke has damaged the part of the brain the
+ method depends on, the patients were recorded soon after the event, and they are much

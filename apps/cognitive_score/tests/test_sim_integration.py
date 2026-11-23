@@ -137,7 +137,7 @@ def test_headless_sinwave_values_are_sanitised(tmp_path):
 def test_ui_selftest_drives_every_step(tmp_path, mode):
     """plan §6.3: the real window, driven through all 7 steps on the simulator, in both modes; includes a
     demo scene (demo) and a forced disconnect that must reconnect automatically and continue the session."""
-    proc = subprocess.run([sys.executable, "app.py", "--selftest", "--mode", mode, "--selftest-live", "24",
+    proc = subprocess.run([sys.executable, "app.py", "--selftest", "--mode", mode, "--selftest-live", "40",
                            "--sessions", str(tmp_path)],
                           cwd=PROJECT, capture_output=True, text=True, timeout=330)
     assert proc.returncode == 0 and "[selftest] PASS" in proc.stdout, proc.stdout[-3000:] + proc.stderr[-3000:]

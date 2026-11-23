@@ -142,6 +142,8 @@ with groups formed using known labels, so it is a block-level decision, not sing
 * Demo scenes (Rest / Eyes closed / Mental math / Relax) with countdown + tone; summary "What changed" table.
 * Auto-reconnect after a Bluetooth drop (re-imports calibration + baseline, same session folder).
 * `--replay sessions/<name>` (cogscore/replay.py) = stage backup, labelled REPLAY; reproduces the original scores.
+* Stress break screen (ui/break_screen.py, rules.StressBreakRule): full screen + breathing guide when a stress
+  episode lasts 2 min (demo 20 s); Ctrl+B in demo opens it on demand, logged trigger=manual.
 * Fixed: infinite resistance (electrode off) crashed the resistances writer, so bad-contact rows were missing.
 * Tests: 81 fast + 9 sim (both UI self-tests force a disconnect) + 1 slow, all pass on this PC.
 

@@ -16,6 +16,7 @@ Events emitted on `monitor.events`:
     signal_warning(bool)                        break_suggested(reason)
     self_report_due()                           ppg_detected()
     stress_episode(active: bool)                scene(key or None)   (a demo scene started / ended)
+    stress_break(info dict)                     (open the full-screen stress break)
 
 Besides the CapsuleEngine events it also accepts, from a ReplayEngine:
     index_values(rel, own)   band_frame(frame)   (already-computed values from a recorded session)
@@ -30,7 +31,7 @@ from .events import EventBus
 from .metrics import (BaselineCollector, RollingMedian, RunningStats, clip01_100, compute_indices, is_valid,
                       level, percent_of_baseline, sanitize, score_vs_baseline)
 from .quality import ArtifactWindow, ContactGate
-from .rules import BreakRule, SelfReportScheduler, StressEpisodes
+from .rules import BreakRule, SelfReportScheduler, StressBreakRule, StressEpisodes
 from .session import SessionWriter
 from .spectral import RawBandAnalyzer
 
@@ -77,6 +78,9 @@ class Monitor:
         self._scene_data = []                  # per scene: {"scores": {k: RunningStats}, "abs": {band: [..]}}
         self._outside = {"scores": {k: RunningStats() for k in SCORES}, "abs": {b: [] for b in BAND_NAMES}}
         self.disconnects = []                  # [[elapsed_s, reconnected_elapsed_s or None]]
+        self.stress_break_rule = None          # created when the session goes live
+        self.stress_breaks = []                # [{"t", "trigger", "stress", "action", "before", "after"}]
+        self.stress_screen_open = False        # set by the UI while the break screen is up
 
         # references: stress/fatigue vs the first minutes of work, band powers vs rest
         self.ratio_base = BaselineCollector()
@@ -214,6 +218,50 @@ class Monitor:
             self.self_reports.answered(self._clock())
         self._event("self_report_skipped")
 
+    # ── stress break screen ──────────────────────────────────────
+    def current_stress(self):
+        return self._smooth["stress"].value(self._clock())
+
+    def request_stress_break(self, trigger="auto"):
+        """Open the break screen. trigger: "auto" (the rule fired) or "manual" (presenter key, demo)."""
+        if self.live_since is None or self.stress_screen_open or self.in_break:
+            return False
+        stress = self.current_stress()
+        self.stress_breaks.append({"t": round(self.elapsed_live, 1), "trigger": trigger,
+                                   "stress": round(stress, 1) if is_valid(stress) else None,
+                                   "action": None, "before": None, "after": None})
+        self._event("stress_break_prompt", f"{trigger} stress={stress:.0f}" if is_valid(stress) else trigger)
+        self.events.emit("stress_break", dict(self.stress_breaks[-1]))
+        return True
+
+    def stress_break_response(self, action):
+        """action: "start" (take the break), "snooze" or "dismiss"."""
+        if not self.stress_breaks or self.stress_breaks[-1]["action"] is not None:
+            return
+        sb = self.stress_breaks[-1]
+        sb["action"] = action
+        self._event(f"stress_break_{action}")
+        if action == "start":
+            stress = self.current_stress()
+            sb["before"] = round(stress, 1) if is_valid(stress) else None
+            self.start_break()
+            self.markers.append((round(self.elapsed_live, 1), "Stress break"))
+        elif self.stress_break_rule:
+            self.stress_break_rule.respond(self.elapsed_live, action)
+
+    def stress_break_done(self):
+        """The guided break ended (time up or ended early)."""
+        if not self.stress_breaks or self.stress_breaks[-1]["action"] != "start":
+            return None
+        sb = self.stress_breaks[-1]
+        stress = self.current_stress()
+        sb["after"] = round(stress, 1) if is_valid(stress) else None
+        self.end_break()
+        if self.stress_break_rule:
+            self.stress_break_rule.respond(self.elapsed_live, "done")
+        self._event("stress_break_done", f"before={sb['before']} after={sb['after']}")
+        return dict(sb)
+
     def tick(self):
         """Call ~2×/s: evaluates the time-based rules."""
         now = self._clock()
@@ -228,8 +276,15 @@ class Monitor:
         if self.scene is not None and self.scene_remaining() <= 0:
             self.end_scene()
         # The check-in waits until a break or a scene is over (a pop-up during "eyes closed" would spoil it).
-        if self.self_reports and not self.in_break and self.scene is None and self.self_reports.due(now):
+        if (self.self_reports and not self.in_break and self.scene is None and not self.stress_screen_open
+                and self.self_reports.due(now)):
             self.events.emit("self_report_due")
+        if self.stress_break_rule and config.STRESS_BREAK_ENABLED and self.reference_ready:
+            # Fills during a scene but opens only after it; an unanswered check-in does not block it.
+            stress = NAN if self._signal_poor else self._smooth["stress"].value(now)
+            if self.stress_break_rule.update(self.elapsed_live, stress, in_break=self.in_break,
+                                             frozen=self.stress_screen_open, can_open=self.scene is None):
+                self.request_stress_break("auto")
         reason = self.break_rule.update(now, self._smooth["fatigue"].value(now))
         if reason:
             self._event("break_suggested", reason)
@@ -254,6 +309,9 @@ class Monitor:
             "hr_stress_index": sanitize(card.get("stress_index")) if card.get("metrics_available") else NAN,
             "in_break": self.in_break,
             "scene": self.scene["key"] if self.scene else None,
+            "break_meter": (100 * self.stress_break_rule.level if self.stress_break_rule
+                            and config.STRESS_BREAK_ENABLED and self.reference_ready else NAN),
+            "break_meter_quiet_s": self.stress_break_rule.quiet_left(self.elapsed_live) if self.stress_break_rule else 0,
             "elapsed_s": self.elapsed_live,
         })
         return snap
@@ -280,6 +338,7 @@ class Monitor:
             "markers": self.markers,
             "scenes": self.scene_summary(),
             "disconnects": self.disconnects,
+            "stress_breaks": self.stress_breaks,
             "mode": config.MODE,
             "artifact_fraction": round(self.artifacts.session_fraction, 3),
             "raw_windows_rejected": round(self.raw.rejected_fraction, 3) if self.raw else None,
@@ -541,6 +600,7 @@ class Monitor:
         self.break_rule = BreakRule(now)
         self.self_reports = SelfReportScheduler(now)
         self.stress_episodes = StressEpisodes()       # timings of the current mode
+        self.stress_break_rule = StressBreakRule()
         if self.session:
             self.session.set_meta("baseline", data)
         imported = bool(data.get("imported"))

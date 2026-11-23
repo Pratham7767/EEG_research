@@ -4,3 +4,4 @@ matplotlib>=3.7
 customtkinter>=5.2
 pillow>=10          # only for --selftest --screenshots
 pytest>=8           # tests
+sounddevice>=0.4      # beeps on the laptop speakers, not the EEG headset

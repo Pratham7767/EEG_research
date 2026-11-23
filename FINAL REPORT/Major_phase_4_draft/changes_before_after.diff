@@ -1,0 +1,425 @@
+═══════════════════════════════════════════════════════════
+FILE: abstract.tex
+═══════════════════════════════════════════════════════════
+@@ -21,9 +21,11 @@
+ patients. The ERD/ERS analysis carries over, but the accuracy there is poor, which is in
+ line with the 55 to 72\% the dataset authors themselves report using all 30 channels, and
+ reflects the damage a stroke does to the part of the brain the method depends on. Left and
+-right motor imagery was also recorded with the headset, where the same C3/C4 difference
+-appears in the trials examined, but classifiers trained on either public dataset stayed
+-near chance on the recorded data. This shows that the recording
++right motor imagery was also recorded with the headset. The same C3/C4 difference can be
++seen in the example trials examined, but it does not hold across the dataset: over all 72
++recorded trials the log C3/C4 ratio gives an area under the ROC curve of 0.51, that is, no
++measurable separation, and classifiers trained on either public dataset stayed near chance
++on the recorded data. This shows that the recording
+ protocol, rather than the classifier, is the main thing to improve. The cognitive scoring
+ part works end to end, with the scores computed live against each person's own
+ calibration. No audio is recorded at any stage.
+
+═══════════════════════════════════════════════════════════
+FILE: literature_review.tex
+═══════════════════════════════════════════════════════════
+@@ -31,7 +31,8 @@
+ 
+ Both of these studies are directly relevant to the hardware used in this project. The GELO
+ BCI headset used here is a dry-electrode headphone with only four EEG channels (A1, A2, C3
+-and C4) and a single reference at Cz, sampled at 250 Hz. It gains the comfort and quick
++and C4) recorded against a reference at Cz, sampled at 250 Hz. The two motor channels are
++then re-referenced to the ear electrodes and read as C3--A1 and C4--A2. It gains the comfort and quick
+ setup reported in these studies, but it also inherits their limitations: fewer channels,
+ weaker signals and more noise than a research-grade cap. This trade-off shapes much of the
+ work reported in the later chapters.
+@@ -63,8 +64,15 @@
+ 
+ This dataset suits the present work for three reasons. The subjects are healthy, as in the
+ recordings made for this project. The sampling rate is the same 250 Hz as the GELO headset,
+-and the layout is almost the same, with the two motor cortex electrodes at C3 and C4 plus
+-one at Cz. Finally, it comes with a fixed split, three sessions for training and two later
++and the electrodes sit over the same two motor cortex positions, C3 and C4, plus one at
++Cz. The way those positions are read is not the same, however. In 2b each channel is a
++closely spaced bipolar pair straddling C3, Cz or C4, which measures the difference across
++a few centimetres of scalp and so picks up mainly local activity. On the GELO headset the
++motor channels are read against the ear electrodes, as C3--A1 and C4--A2. That is a
++long-distance derivation: it spans most of one side of the head, so it records more
++widespread activity and is far more exposed to jaw and temple muscle noise. This
++difference in derivation, rather than the electrode positions, is a likely reason a model
++trained on 2b does not carry over to the recorded data. Finally, it comes with a fixed split, three sessions for training and two later
+ sessions for testing, so a classifier can be checked on days it has never seen. Many
+ methods have been tested on it, and the winning entry of the competition used filter bank
+ CSP~\cite{ang2012fbcsp}, which is one of the methods tried in this project. For these
+@@ -101,7 +109,7 @@
+ The standard way of looking at motor imagery is through event-related desynchronisation
+ (ERD) and event-related synchronisation (ERS). ERD is a drop in power in a given frequency
+ band during a task and ERS is a rise in power. For motor imagery, power in the alpha
+-(8--15 Hz) and beta (15--30 Hz) bands usually drops over the motor cortex on the side
++(mu, 8--13 Hz) and beta (13--30 Hz) bands usually drops over the motor cortex on the side
+ opposite to the imagined hand \cite{pfurtscheller1999erd}. The reference dataset paper computes this by filtering C3
+ and C4 between 8 and 30 Hz, squaring the signal to get power, averaging across trials and
+ comparing against a baseline taken just before the task \cite{liu2024mi}. The same paper
+
+═══════════════════════════════════════════════════════════
+FILE: technical_description.tex
+═══════════════════════════════════════════════════════════
+@@ -107,7 +107,11 @@
+ of wireless headphones, but it has dry electrodes built into the headband and ear cups.
+ It records four EEG channels, named A1, A2, C3 and C4, against a reference electrode at Cz,
+ with two further electrodes acting as ground. The names follow the 10--20 scheme
+-\cite{gelo2026manual}.
++\cite{gelo2026manual}. Cz is the reference used at the point of recording; the two motor
++channels are then re-referenced in the device software and read as the pairs C3--A1 and
++C4--A2, which is what the bipolar read mode in Table~\ref{tab:gelo_spec} refers to. The
++two statements are therefore describing different stages of the same signal path and not
++two different wiring schemes.
+ 
+ These positions are the main reason the device suits this project. C3 lies over the left
+ motor cortex and C4 over the right, and these are the two places where the activity
+@@ -140,7 +144,7 @@
+ \hline
+ Sampling rate & 250 Hz per channel \\
+ \hline
+-Read mode & Bipolar (A1--C3, A2--C4) \\
++Read mode & Bipolar after re-referencing (A1--C3, A2--C4) \\
+ \hline
+ Wireless link & Bluetooth Low Energy 5.0 \\
+ \hline
+
+═══════════════════════════════════════════════════════════
+FILE: results.tex
+═══════════════════════════════════════════════════════════
+@@ -247,9 +247,14 @@
+ There is one clear difference from the data recorded with the GELO headset. In BCI
+ Competition IV 2b both channels fall below the baseline after the cue, which is a true
+ desynchronisation, while in the recorded data both channels mostly rose. In 2b the second
+-before the cue is a calm fixation period, so $M$ is a real rest level. This supports the
+-explanation given later in Section~\ref{sec:recorded_results} that the baseline in the
+-recorded sessions is not a true rest period.
++before the cue is a fixation period rather than an active task, so $M$ is a cleaner
++reference than the one available in the recorded data. It is not a perfectly quiet
++baseline either: in the feedback sessions 3 to 5 the warning beep falls one second before
++the cue, which is inside this window, so part of it carries the response to that beep.
++The window used for the classifier in Section~\ref{sec:bci2b_svm} avoids this by taking
++2 to 1 s before the cue instead. The comparison with the recorded data still holds,
++because the 2b rest period is in any case closer to true rest than the pre-marker period
++in the GELO sessions, which is covered in Section~\ref{sec:recorded_results}.
+ 
+ \FloatBarrier
+ 
+@@ -295,14 +300,24 @@
+ \subsection{The C3/C4 Power Ratio as a Left and Right Detector}
+ 
+ The same ratio was computed for every subject, and the result is given in
+-Table~\ref{tab:bci2b_ratio} and Figure~\ref{fig:bci2b_ratio}. The reasoning behind it is
+-simple. Imagining the left hand lowers the power at C4, so C3/C4 goes up. Imagining the
+-right hand lowers the power at C3, so C3/C4 goes down. Using C4/C3 instead carries exactly
+-the same information, with the direction reversed.
++Table~\ref{tab:bci2b_ratio} and Figure~\ref{fig:bci2b_ratio}. Left-hand imagery produces a
++stronger mu ERD over the contralateral (right) hemisphere at C4, and right-hand imagery
++over C3 \cite{pfurtscheller2006mu, nam2011lateralization}. Because C4 power falls during
++left-hand imagery, the C3/C4 power ratio is expected to be higher for left-hand than for
++right-hand trials, which is what Table~\ref{tab:bci2b_ratio} shows for all nine subjects.
++Using C4/C3 instead carries exactly the same information, with the direction reversed.
++
++It is worth being precise about what this quantity is. It is a band-power ratio, the
++8--30 Hz power at C3 divided by the 8--30 Hz power at C4 during imagery, taken from the
++Welch PSD. It is not an ERD measure: it compares the two hemispheres with each other at
++the same moment, so it needs no rest baseline at all. That is part of why it survives in
++data where a clean baseline is hard to obtain.
+ 
+ \begin{table}[!htbp]
+ \centering
+-\caption{C3/C4 power ratio (8--30 Hz, 0--4 s after the cue) and single-trial accuracy of the ratio for each BCI Competition IV 2b subject}
++\caption{C3/C4 band-power ratio (8--30 Hz, 0--4 s after the cue) and single-trial accuracy
++         of the log ratio (8--30 Hz, 0.5--3.5 s after the cue) for each BCI Competition IV
++         2b subject}
+ \label{tab:bci2b_ratio}
+ \begin{tabular}{|c|c|c|c|c|}
+ \hline
+@@ -374,6 +389,7 @@
+ \FloatBarrier
+ 
+ \subsection{SVM Training and Classification Accuracy}
++\label{sec:bci2b_svm}
+ 
+ Several classifiers were trained on the BCI Competition IV 2b data, starting with an SVM
+ on the ERD features described above, and then moving to the standard motor imagery
+@@ -510,6 +526,7 @@
+ \FloatBarrier
+ 
+ \subsection{Testing a BCI Competition IV 2b Model on the Recorded Data}
++\label{sec:bci2b_recorded}
+ 
+ Since the 2b model works well on people it has never seen, the next question was whether
+ it works on the data recorded with the GELO headset. A model was trained on all nine 2b
+@@ -534,7 +551,13 @@
+ new people in 2b, so the classifier itself is working. What stands between it and the
+ GELO headset is the recorded data, most likely the way it was collected: each class was
+ recorded in separate files, markers were placed by hand, the baseline is not a true rest
+-period, and there are only 72 trials. The BCI Competition IV 2b protocol, with left and
++period, and there are only 72 trials. One further difference is in the recording itself.
++In 2b each motor channel is a closely spaced bipolar pair straddling C3 or C4, which
++measures across a few centimetres of scalp and so sees mainly local activity. The GELO
++motor channels are read against the ear electrodes, as C3--A1 and C4--A2, which spans most
++of one side of the head and therefore takes in more widespread activity along with jaw and
++temple muscle noise. A feature computed on one derivation does not describe the same thing
++on the other, which is reason enough for a 2b-trained model not to carry over. The BCI Competition IV 2b protocol, with left and
+ right trials mixed within one session, fixed cue timing and several sessions per person,
+ is a direct model for how the next GELO recordings should be made.
+ 
+@@ -620,12 +643,17 @@
+     \label{fig:erd_ours}
+ \end{figure}
+ 
+-Two things can be seen from this figure. The first is that the two classes do separate. For
+-left-hand imagery the C3 trace stays above C4 for most of the window, reaching 20 to 40 per
+-cent, while for right-hand imagery the order reverses and C4 stays above C3, with both
+-traces remaining within roughly $\pm 15$ per cent. The sign of the difference between the
+-two channels therefore flips between the two classes, which is the property a classifier
+-can make use of.
++Two things can be seen from this figure. The first is that, for this one subject's
++averages, the two classes look as though they separate. For left-hand imagery the C3 trace
++stays above C4 for most of the window, reaching 20 to 40 per cent, while for right-hand
++imagery the order reverses and C4 stays above C3, with both traces remaining within
++roughly $\pm 15$ per cent. The sign of the difference between the two channels flips
++between the two classes, which is the property a classifier would make use of. This
++appearance does not survive a count over the whole dataset: as
++Section~\ref{sec:bci2b_recorded} reports, the log C3/C4 ratio gives an area under the ROC
++curve of 0.51 across all 72 recorded trials, where 0.5 means no separation at all. The
++figure should therefore be read as one subject's average, not as evidence that the classes
++can be told apart in the recorded data.
+ 
+ The second is that the separation does not take the same form as in the two public
+ datasets. In those recordings the contralateral channel falls below the baseline, giving a
+@@ -651,14 +679,16 @@
+ \begin{figure}[!htbp]
+     \centering
+     \includegraphics[width=0.85\linewidth]{psd_left_mi.png}
+-    \caption{Power spectral density of C3 and C4 for an imagined left-hand grasp}
++    \caption{Power spectral density of C3 and C4 for one example trial of an imagined
++             left-hand grasp}
+     \label{fig:psd_left}
+ \end{figure}
+ 
+ \begin{figure}[!htbp]
+     \centering
+     \includegraphics[width=0.85\linewidth]{psd_right_mi.png}
+-    \caption{Power spectral density of C3 and C4 for an imagined right-hand grasp}
++    \caption{Power spectral density of C3 and C4 for one example trial of an imagined
++             right-hand grasp}
+     \label{fig:psd_right}
+ \end{figure}
+ 
+@@ -669,10 +699,27 @@
+ range, giving a C3 to C4 power ratio of 9.52. For the right-hand trial the two curves lie
+ almost on top of each other, with a ratio of 0.86. The spectral peaks are close together in
+ both cases, at 5.50 Hz and 7.00 Hz for the left trial and 6.00 Hz and 6.50 Hz for the right
+-trial, which shows that the peak frequency itself does not separate the classes. It is the
+-balance of power between the two hemispheres, and not the shape of the spectrum, that
+-carries the useful information. This is the reason the logarithm of the C3 to C4 power
+-ratio was included as a feature for the classifier.
++trial, which shows that the peak frequency itself does not separate the classes.
++
++These peaks should not be read as mu or beta activity. They sit at 5.5 to 7.0 Hz, below
++the 8--30 Hz band used for motor imagery, and no mu peak near 10 Hz is visible in either
++trial. In a single four-second trial the spectrum generally falls with frequency, so its
++highest point often lands at the low end simply because that is where the curve starts;
++the same thing happens in single BCI Competition IV 2b trials that have no clear mu peak.
++The GELO spectrum also drops steeply below about 4 Hz because of the filtering inside the
++device, which leaves a narrow band in which the maximum can fall.
++
++The size of the gap deserves the same caution. In Figure~\ref{fig:psd_left} the roughly
++10 dB difference between C3 and C4 spans about 3 to 30 Hz, whereas in the 2b data for
++subject B04 the left and right difference sits on the 11 Hz mu peak and is confined to it.
++A gap that broad is more typical of a difference in electrode contact or channel gain
++between the two sides than of an ERD, which is limited to the mu and beta bands. These two
++figures are therefore example trials, and they are shown to illustrate what a large
++single-trial difference looks like rather than to establish a class difference. Measured
++over all 72 recorded trials the log C3 to C4 ratio gives an area under the ROC curve of
++0.51, that is, no measurable separation (Section~\ref{sec:bci2b_recorded}). The ratio was
++still included as a feature for the classifier because it is the feature that works on the
++2b data.
+ 
+ Both figures also show that the signal falls away sharply beyond about 45 Hz. This is the
+ effect of the filtering applied inside the device, and it is why the analysis in this work
+@@ -713,11 +760,20 @@
+ \end{tabular}
+ \end{table}
+ 
+-All six combinations give accuracies between 50 and 54 per cent, which is close to what
+-would be obtained by guessing on a two-class problem. Adding the power ratio to the
+-statistical features in SVM-B did not improve the result, and using the ratio on its own in
+-SVM-C performed worst. Using ERD power instead of absolute power made very little
+-difference either way.
++The figures in Table~\ref{tab:svm_accuracy} are per trial, counted over the 72 recorded
++trials. That matters for reading them, because the two classes are not balanced: there are
++50 right-hand and 22 left-hand trials, so a classifier that simply answered ``right'' every
++time would score 50/72, or 69.4 per cent. All six combinations fall between 50 and 54 per
++cent, which is not merely close to chance but below that majority-class baseline. Adding
++the power ratio to the statistical features in SVM-B did not improve the result, and using
++the ratio on its own in SVM-C performed worst. Using ERD power instead of absolute power
++made very little difference either way.
++
++With classes this unbalanced, plain accuracy is the wrong summary, and these results
++should be reported as balanced accuracy together with the recall for each class
++separately [balanced accuracy: TODO; per-class recall: TODO]. Section~\ref{sec:bci2b_recorded}
++reports the matching test for the 2b-trained model on a per-file basis instead, where the
++15 recorded files give 15 independent decisions.
+ 
+ This result should be read together with the benchmarks reported for the stroke dataset
+ itself, where CSP with LDA reached 55.6 per cent, filter bank CSP with an SVM reached 57.6
+@@ -730,9 +786,11 @@
+ four dry electrodes at 250 Hz. The second is that only two channels are available for the
+ spatial information, so spatial filtering methods such as CSP \cite{ramoser2000csp}, which are what give the
+ published methods most of their accuracy, cannot be applied at all. The earlier ERD and PSD
+-results show that a difference between the classes does exist in the recorded data, so the
+-limitation lies in the training strategy and the number of channels rather than in the data
+-being empty of information.
++figures show what the difference looks like in individual recorded trials, but
++Section~\ref{sec:bci2b_recorded} shows it does not hold over the 72 trials as a whole, so
++on this evidence the recorded data has not been shown to carry the information in the
++first place. The training strategy and the number of channels are limitations too, but
++they are not sufficient on their own to explain these figures.
+ 
+ The BCI Competition IV 2b results in Section~\ref{sec:bci2b} put these numbers in
+ perspective. On that dataset, a model using only C3 and C4 and trained on other people
+@@ -879,9 +937,18 @@
+ The differences seen between the two motor imagery classes come from the way the motor
+ cortex is organised. Imagining a movement of one hand changes the activity over the
+ opposite hemisphere, so the balance of power between C3 and C4 shifts depending on which
+-hand is imagined. This is what both the ERD traces in Figure~\ref{fig:erd_ours} and the
+-power ratios in Figures~\ref{fig:psd_left} and~\ref{fig:psd_right} show, and it is the only
+-property of the signal that separated the two classes reliably in this work.
++hand is imagined. On the BCI Competition IV 2b data this is the one property of the signal
++that separated the two classes reliably: the ratio runs in the expected direction for all
++nine subjects and identifies the hand on unseen days on its own.
++
++On the data recorded here the picture is different and should not be read the same way.
++The difference is visible in the example trials of Figures~\ref{fig:psd_left}
++and~\ref{fig:psd_right} and in one subject's averaged ERD traces in
++Figure~\ref{fig:erd_ours}, but it does not hold up across the dataset. Measured over all
++72 recorded trials the log C3/C4 ratio gives an area under the ROC curve of 0.51
++(Section~\ref{sec:bci2b_recorded}), which is no separation. What the recorded figures show
++is what the effect looks like when it is present in a single trial, not evidence that it
++is present throughout.
+ 
+ The BCI Competition IV 2b data shows a different kind of variation, between people
+ rather than between devices. All nine subjects show the expected change in the C3/C4
+@@ -900,13 +967,23 @@
+ the marker, when the subject is already preparing for the task, so it does not represent a
+ true rest level and the computed percentages are shifted upward as a result.
+ 
+-The low classification accuracy follows from the same two causes, together with the decision
+-to train on one dataset and test on another. The subjects differ, the recording hardware
+-differs, the sampling rate differs and the number of channels differs, so features computed
+-on the training set do not fall in the same range as those computed on the test set. The
+-small amount of recorded data, 50 right-hand and 22 left-hand usable trials, also means the
+-two classes are unbalanced, which pushes a classifier towards the majority class and keeps
+-the accuracy near the chance level.
++The low classification accuracy follows from the same two causes, together with the
++decision to train on one dataset and test on another. The subjects differ, the recording
++hardware differs, the sampling rate differs and the number of channels differs, so features
++computed on the training set do not fall in the same range as those computed on the test
++set. A further difference is in how the motor positions are read: in 2b each channel is a
++closely spaced bipolar pair around C3 or C4, while the GELO motor channels are read
++against the ear electrodes as C3--A1 and C4--A2, a far longer derivation that takes in more
++widespread activity and more jaw and temple muscle noise, so the same feature does not
++describe the same thing in the two datasets.
++
++The class imbalance needs stating carefully. There are 50 right-hand and 22 left-hand
++usable trials, so always answering ``right'' would already give 69.4 per cent per trial.
++The measured 50 to 54 per cent therefore sits below that baseline rather than being
++explained by a drift towards the majority class, and
++Section~\ref{sec:bci2b_recorded} found the predictions of the 2b-trained model to be split
++roughly evenly between the two hands. Because of the imbalance, balanced accuracy is the
++figure that should be quoted for this dataset.
+ 
+ For the cognitive scoring, the variation between sessions is handled by referencing
+ everything to the person's own calibration. Because the scores are computed from relative
+@@ -927,11 +1004,13 @@
+ person and 74.7 per cent on a new person, and the model choice mattered far less than
+ Euclidean alignment or the quality of the data.
+ 
+-The recorded GELO data shows the same kind of difference in the examples analysed, with
+-the C3 to C4 power ratio reaching 9.52 for a left-hand trial and 0.86 for a right-hand
+-trial on the same subject, and the direction of the difference between the two channels
+-reversing between the classes. Taken over all 72 recorded trials, however, the difference
+-is much weaker than in the 2b data.
++The recorded GELO data shows the same kind of difference in the example trials analysed,
++with the C3 to C4 power ratio reaching 9.52 for one left-hand trial and 0.86 for one
++right-hand trial on the same subject, and the direction of the difference between the two
++channels reversing between those two examples. Taken over all 72 recorded trials the
++difference disappears: the log ratio gives an area under the ROC curve of 0.51, which is
++no measurable separation. The honest reading is that the effect can be seen in individual
++trials but has not been shown to hold across the recorded dataset.
+ 
+ Extending the method to the stroke dataset gives much weaker results. Classifiers trained
+ on that data and tested on the recorded data gave between 50 and 54 per cent across all
+
+═══════════════════════════════════════════════════════════
+FILE: conclusion.tex
+═══════════════════════════════════════════════════════════
+@@ -38,10 +38,11 @@
+ recordings and more channels than the headset carries.
+ 
+ On the data recorded with the GELO headset, the same kind of C3/C4 difference is visible in
+-the trials examined, with a power ratio of 9.52 for a left-hand trial and 0.86 for a
+-right-hand trial. However, classifiers trained on either public dataset stayed close to
+-chance on the recorded data, and across all 72 usable trials the left and right difference
+-was much weaker than in the 2b data. Since the same classifier works well on new people in
++the example trials examined, with a power ratio of 9.52 for one left-hand trial and 0.86
++for one right-hand trial. It does not survive a count over the whole dataset. Across all
++72 usable trials the log C3/C4 ratio gives an area under the ROC curve of 0.51, which
++means no measurable separation, and classifiers trained on either public dataset stayed
++close to chance on the recorded data. Since the same classifier works well on new people in
+ 2b, the main limit is the recorded data and the way it was collected, and not the
+ classifier or the number of channels.
+ 
+
+═══════════════════════════════════════════════════════════
+FILE: bibliography.tex
+═══════════════════════════════════════════════════════════
+@@ -4,7 +4,7 @@
+ % Entries are numbered in the order they are first cited in the report (IEEE style).
+ % Keep this order when adding a reference: put the new \bibitem where it is first cited.
+ 
+-%====================== Chapter 1 : Introduction ======================
++% Entries are ordered by first citation in the report.
+ 
+ \bibitem{who2024neuro}
+ World Health Organization, ``Over 1 in 3 people affected by neurological conditions, the leading cause of illness and disability worldwide,'' \textit{WHO}, Mar.\ 14, 2024. [Online]. Available: \url{https://www.who.int/news/item/14-03-2024-over-1-in-3-people-affected-by-neurological-conditions--the-leading-cause-of-illness-and-disability-worldwide}. [Accessed: April 10, 2026].
+@@ -142,6 +142,7 @@
+ pp. 371--375, 1958.
+ 
+ % TODO: replace the URL and access date below with the exact page you used.
++
+ \bibitem{gelo2026manual}
+ GELO, ``GELO BCI Digital EEG Recorder Headphones: user manual and SDK
+ documentation,'' GELO, 2026. [Online]. Available: \url{https://www.gelo.one/}.
+@@ -154,6 +155,7 @@
+ [Accessed: April 10, 2026].
+ 
+ % TODO: confirm the exact model of your panel and update the wiki link if needed.
++
+ \bibitem{waveshare7inch}
+ Waveshare, ``7inch HDMI LCD capacitive touch display,'' Waveshare Wiki. [Online].
+ Available: \url{https://www.waveshare.com/wiki/7inch_HDMI_LCD}.
+@@ -180,6 +182,18 @@
+ \textit{IEEE Transactions on Audio and Electroacoustics}, vol. 15, no. 2,
+ pp. 70--73, 1967.
+ 
++\bibitem{pfurtscheller2006mu}
++G. Pfurtscheller, C. Brunner, A. Schl\"{o}gl, and F. H. Lopes da Silva, ``Mu rhythm
++(de)synchronization and EEG single-trial classification of different motor imagery
++tasks,'' \textit{NeuroImage}, vol. 31, no. 1, pp. 153--159, 2006,
++doi: 10.1016/j.neuroimage.2005.12.003.
++
++\bibitem{nam2011lateralization}
++C. S. Nam, Y. Jeon, Y.-J. Kim, I. Lee, and K. Park, ``Movement imagery-related
++lateralization of event-related (de)synchronization (ERD/ERS): Motor-imagery duration
++effects,'' \textit{Clinical Neurophysiology}, vol. 122, no. 3, pp. 567--577, 2011,
++doi: 10.1016/j.clinph.2010.08.002.
++
+ \bibitem{he2020ea}
+ H. He and D. Wu, ``Transfer learning for brain-computer interfaces: A Euclidean space
+ data alignment approach,'' \textit{IEEE Transactions on Biomedical Engineering}, vol. 67,
+

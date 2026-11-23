@@ -14,9 +14,10 @@ Events emitted on `engine.events` (all payloads are plain Python / numpy):
     baseline_progress(float)   baseline(dict)             cardio(dict)
     reconnected()              error(str)
 
-Reconnect: after a drop (state DISCONNECTED) `reconnect()` connects the same headset again and
-returns to where it was: LIVE (calibration + baseline re-imported into the SDK classifiers),
-CALIBRATED, or STREAMING. The session keeps going in the same folder.
+Reconnect: after a drop (state DISCONNECTED) `reconnect()` searches for the same headset until it is
+back (the SDK forgets a headset that was switched off: "No devices with ID ... were found", so the old
+device object cannot reconnect), opens a new device + new classifiers, imports the saved calibration and
+baseline, and returns to where it was: LIVE, CALIBRATED or STREAMING. Same session folder.
 """
 import logging
 import os
@@ -144,6 +145,9 @@ class CapsuleEngine:
         self._baseline_deadline = None
         self._resume_to = None              # set while reconnecting after a drop
         self.reconnects = 0
+        self._reconnect_scan_until = None   # a reconnect search is running until this time
+        self._rescan_at = None              # next reconnect search
+        self._retired = []                  # old device / classifier objects, kept alive (no __del__ mid-session)
         self._last_psd = -1e9
         self._psd_bins = None               # (indices, freqs) of 1-30 Hz bins, cached
         self._calibrator = self._productivity = self._emotions = self._cardio = None
@@ -161,6 +165,13 @@ class CapsuleEngine:
         if st == State.SCANNING and now > self._scan_deadline:
             self.flow.go(State.IDLE)
             self.events.emit("error", "No response from Bluetooth while scanning. Check the dongle and try again.")
+        elif st == State.CONNECTING and self._resume_to is not None and (
+                self._reconnect_scan_until is not None or self._rescan_at is not None):
+            if self._rescan_at is not None and now >= self._rescan_at:
+                self._reconnect_search()
+            elif self._reconnect_scan_until is not None and now > self._reconnect_scan_until:
+                self._reconnect_scan_until = None                  # no answer from the scan: try again
+                self._rescan_at = now + 1.0
         elif st == State.CONNECTING:
             if self._retry_at is not None and now >= self._retry_at:
                 self._retry_at = None
@@ -211,7 +222,46 @@ class CapsuleEngine:
         self.flow.go(State.CONNECTING)
         self._connect_attempt = 0
         self._retry_at = None
-        self.events.emit("status", "Reconnecting to the headphones...")
+        self._searches = 0
+        self._reconnect_search()
+
+    def _reconnect_search(self):
+        """One Bluetooth search for the headset; repeated until it is found (see pump)."""
+        self._rescan_at = None
+        self._searches += 1
+        self._reconnect_scan_until = self._clock() + config.RECONNECT_SCAN_S + 5
+        self.events.emit("status", f"Searching for the headphones (try {self._searches})... "
+                                   "Switch them on; the session continues by itself.")
+        self._locator.request_devices(self.device_type, config.RECONNECT_SCAN_S)
+
+    def _reconnect_found(self, serial):
+        """The headset is visible again: fresh device + classifiers (the old ones are bound to the dead
+        connection), then connect. _on_connected re-creates the classifiers and _resume_after_reconnect
+        imports the calibration and baseline."""
+        from .capsule_sdk.Device import Device
+        self._reconnect_scan_until = None
+        old = self.device
+        if old is not None:
+            # Release the dead device: its classifier modules go with it (the SDK has no destroy call for
+            # them, and creating new ones while they exist fails: "clCProductivity module already exists").
+            try:
+                old.disconnect()
+            except Exception:
+                pass
+            try:
+                self.lib.clCDevice_Release(old.get_c_pointer())
+            except Exception:
+                logger.exception("releasing the old device failed")
+
+            class _NoRelease:                       # the wrapper's __del__ must not release it a second time
+                def clCDevice_Release(self, _ptr):
+                    pass
+            old._lib = _NoRelease()
+        self._retired.append((old, self._calibrator, self._productivity, self._emotions, self._cardio))
+        self._calibrator = self._productivity = self._emotions = self._cardio = None
+        self.device = Device(self._locator, serial, self.lib)
+        self._wire_device_callbacks()
+        self._connect_attempt = 0
         self._attempt_connect()
 
     def start_calibration(self):
@@ -260,6 +310,7 @@ class CapsuleEngine:
     def stop(self):
         self._resume_to = None
         self._retry_at = None
+        self._reconnect_scan_until = self._rescan_at = None
         if self.state in _STOPPABLE:
             self.flow.go(State.STOPPED)
         if self.device is not None:
@@ -290,11 +341,10 @@ class CapsuleEngine:
             delay = config.CONNECT_RETRY_DELAYS_S[self._connect_attempt - 1]
             self.events.emit("status", f"Connection failed ({why}); retrying in {delay} s...")
             self._retry_at = self._clock() + delay
-        elif self._resume_to is not None:
-            self._resume_to = None
-            self.flow.go(State.DISCONNECTED)
-            self.events.emit("error", f"Could not reconnect after {self._connect_attempt} attempts ({why}). "
-                                      "Check the headphones are on, then press Reconnect.")
+        elif self._resume_to is not None:                 # reconnecting: search again, never give up
+            self._retry_at = None
+            self._rescan_at = self._clock() + 2.0
+            self.events.emit("status", f"Reconnect attempt failed ({why}); searching again...")
         else:
             self.flow.go(State.DEVICES_FOUND)
             self.events.emit("error", f"Could not connect after {self._connect_attempt} attempts ({why}).")
@@ -390,6 +440,14 @@ class CapsuleEngine:
 
     # ── SDK callbacks (run inside pump) ──────────────────────────
     def _on_devices_list(self, _locator, info, fail_reason):
+        if self.state == State.CONNECTING and self._reconnect_scan_until is not None:
+            serials = [info[i].get_serial() for i in range(len(info))]
+            if self._connect_serial in serials:
+                self._reconnect_found(self._connect_serial)
+            else:
+                self._reconnect_scan_until = None
+                self._rescan_at = self._clock() + 2.0
+            return
         if self.state != State.SCANNING:
             return
         fail = _int(fail_reason)

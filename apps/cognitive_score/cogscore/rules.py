@@ -169,3 +169,48 @@ class SelfReportScheduler:
     def answered(self, now):
         self._pending = False
         self._last = now
+
+class StressBreakRule:
+    """Break meter (0-1) for the full-screen stress break.
+
+    Each second it fills by 1/`fill_s` while stress >= `high`, drains by 1/`drain_s` while stress < `low`,
+    and stays put in between, while the signal is unusable (stress NaN) or while `frozen`. During a break
+    it only drains. When it is full and `can_open` (no scene running, screen not already open) and the
+    quiet period is over, update() returns True once; respond() then empties it and starts a quiet
+    period (cooldown, or snooze). Times are live-session seconds."""
+
+    def __init__(self, high=None, low=None, fill_s=None, drain_s=None, cooldown_s=None, snooze_s=None):
+        self.high = config.STRESS_METER_HIGH if high is None else high
+        self.low = config.STRESS_METER_LOW if low is None else low
+        self.fill_s = config.STRESS_BREAK_HOLD_S if fill_s is None else fill_s
+        self.drain_s = config.STRESS_METER_DRAIN_S if drain_s is None else drain_s
+        self.cooldown_s = config.STRESS_BREAK_COOLDOWN_S if cooldown_s is None else cooldown_s
+        self.snooze_s = config.STRESS_BREAK_SNOOZE_S if snooze_s is None else snooze_s
+        self.level = 0.0
+        self._last = None
+        self._quiet_until = -math.inf
+        self._waiting = False               # fired; waits for respond()
+
+    def quiet_left(self, now):
+        return max(0.0, self._quiet_until - now)
+
+    def update(self, now, stress, in_break=False, frozen=False, can_open=True):
+        """Advance the meter to `now`. True when the break screen should open now."""
+        dt = 0.0 if self._last is None else min(max(now - self._last, 0.0), 2.0)
+        self._last = now
+        if not frozen and stress is not None and math.isfinite(stress):
+            if stress >= self.high and not in_break:
+                self.level = min(1.0, self.level + dt / self.fill_s)
+            elif stress < self.low:
+                self.level = max(0.0, self.level - dt / self.drain_s)
+        if (self.level >= 1.0 and can_open and not in_break and not frozen and not self._waiting
+                and now >= self._quiet_until):
+            self._waiting = True
+            return True
+        return False
+
+    def respond(self, now, action):
+        """After the screen: "snooze" → quiet for snooze_s, anything else → quiet for cooldown_s."""
+        self.level = 0.0
+        self._waiting = False
+        self._quiet_until = now + (self.snooze_s if action == "snooze" else self.cooldown_s)

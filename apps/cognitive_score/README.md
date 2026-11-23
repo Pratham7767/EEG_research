@@ -39,7 +39,12 @@ Both modes measure exactly the same way (same filters, formulas, thresholds). On
 | Stress episode: ≥ 80 (start) / < 65 (end) held for | 30 s | 15 s |
 | Sleepiness check-in | every 10 min | at 4 min (then every 4 min) |
 | Live timeline shows the last | 30 min | 10 min |
-| Scene buttons and "What changed" table | – | yes |
+| Break meter fills while stress ≥ / drains below | 75 / 60 | 70 / 60 |
+| … time of high stress to fill it (opens the stress break) | 2 min | 20 s |
+| … time of low stress to empty it | 8 min | 1 min |
+| … then quiet for (Snooze: ) | 20 min (10 min) | 2 min (1 min) |
+| … guided breathing break | 2 min | 1 min |
+| Scene buttons, "What changed" table, Ctrl+B | – | yes |
 
 The mode is saved in `session.json` (`mode`, `settings`) and shown in the sidebar and on the summary.
 
@@ -59,13 +64,41 @@ The summary then shows **What changed in each scene**: the difference of each sc
 (or versus the rest of the session if no Rest scene was run), and the change of alpha power. The first 5 s of
 each scene are skipped. The sleepiness check-in waits until a scene is over; starting a break ends a scene.
 
+### Stress break screen
+
+The live screen has a **Break meter** card. It fills while stress is high, drains while stress is low,
+and stays put in between or while the signal is noisy (values in the table above). At **100 %** a
+full-screen window opens on top of everything. During a scene the meter keeps filling, but the window
+waits until the scene ends (demo: *Mental math* → meter fills → break screen). After the screen the meter
+is empty and pauses (20 min, or the snooze time; the card shows the countdown).
+On the 2026-11-21 recording it fills at 13:37 in real use (stress episode from 12:03) and at 2:50 in demo.
+
+1. **Prompt**: "Your stress has been high for a while", the breathing circle, stress now, and
+   *Start break* / *Snooze* / *Not now*.
+2. **Breathing**: a circle grows for 4 s (breathe in) and shrinks for 6 s (breathe out), a countdown, and
+   the live stress value with a small chart. *End break* stops early.
+3. **Done**: stress before → after, *Back to work*.
+
+Esc always closes it. An unanswered check-in does not block it; the check-in waits instead.
+Taking it counts as a normal break. It covers the real monitor size (at 125 % display scaling Tk's
+"-fullscreen" covered only 80 %; F11 on the main window had the same problem and uses the same fix).
+Turn it off with the switch in the start window or `--no-stress-break`.
+
+Demo only: **Ctrl+B** opens the same screen on demand (stress cannot be made to rise on cue). It is recorded
+as `trigger: manual` in `session.json`, so the data shows which ones were automatic.
+
+Recorded: `events.csv` (`stress_break_prompt`, `_start`, `_snooze`, `_dismiss`, `_done before= after=`),
+`session.json` summary `stress_breaks`, a summary tile, and a "Stress break" marker on the timeline.
+
 ### If the headphones drop out
 
-The app reconnects by itself (one automatic try, which retries 3 more times). If that fails, a **Reconnect**
-button appears at the bottom right. After reconnecting, the calibration and baseline are put back into the
-SDK, and the session continues in the same folder; the drop is logged (`events.csv`: `disconnected`,
-`reconnected`; summary: `disconnects`). During calibration or baseline, a drop stops that step; press
-Start again once reconnected.
+The app searches for the headset every few seconds until it is back, then reconnects by itself; just
+switch the headphones on again. (The headset SDK forgets a headset that was switched off, so the app opens
+a new connection after a fresh search rather than retrying the old one, which is what failed on
+2026-11-23.) After reconnecting, the calibration and baseline are put back into the SDK and the session
+continues in the same folder; the drop is logged (`events.csv`: `disconnected`, `reconnected`; summary:
+`disconnects`) and shown in red on the timeline. During calibration or baseline, a drop stops that step;
+press Start again once reconnected.
 
 ### Replay (stage backup)
 

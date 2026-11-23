@@ -87,6 +87,38 @@ class HeroMetric(Card):
             self.configure(border_color=theme.BORDER, border_width=1)
 
 
+class BreakMeterCard(Card):
+    """Stress break meter: fills while stress is high; at 100 % the full-screen break opens."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        top = ctk.CTkFrame(self, fg_color="transparent")
+        top.pack(fill="x", padx=20, pady=(16, 0))
+        ctk.CTkFrame(top, width=10, height=10, corner_radius=5, fg_color=theme.SERIOUS).pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(top, text="Break meter", font=theme.font(15, "bold"), text_color=theme.INK_2).pack(side="left")
+        row = ctk.CTkFrame(self, fg_color="transparent")
+        row.pack(fill="x", padx=20)
+        self.value = ctk.CTkLabel(row, text="—", font=theme.font(54, "bold"), text_color=theme.INK)
+        self.value.pack(side="left")
+        self.note = ctk.CTkLabel(row, text="", font=theme.font(14), text_color=theme.INK_2, justify="left")
+        self.note.pack(side="left", padx=(12, 0), pady=(18, 0))
+        self.meter = ctk.CTkProgressBar(self, height=14, corner_radius=7, progress_color=theme.INK_2,
+                                        fg_color=theme.RAISED)
+        self.meter.set(0)
+        self.meter.pack(fill="x", padx=20, pady=(4, 18))
+
+    def set(self, percent, note, waiting=False):
+        if valid(percent):
+            self.value.configure(text=f"{percent:.0f}%", text_color=theme.MUTED if waiting else theme.INK)
+            self.meter.set(max(0.0, min(1.0, percent / 100)))
+            colour = theme.CRITICAL if percent >= 90 else theme.WARNING if percent >= 60 else theme.INK_2
+            self.meter.configure(progress_color=theme.MUTED if waiting else colour)
+        else:
+            self.value.configure(text="—", text_color=theme.MUTED)
+            self.meter.set(0)
+        self.note.configure(text=note)
+
+
 class SmallMeter(ctk.CTkFrame):
     """Label · value · thin neutral meter (secondary metrics)."""
 

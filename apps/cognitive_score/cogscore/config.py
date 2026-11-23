@@ -9,6 +9,7 @@ SDK_LOG_DIR = os.path.join(PROJECT_DIR, "logs")
 SCAN_SECONDS = 10
 CONNECT_TIMEOUT_S = 20
 CONNECT_RETRY_DELAYS_S = [2, 5, 10]          # 3 attempts after the first failure
+RECONNECT_SCAN_S = 5                         # after a drop: search this long, again and again until found
 BIPOLAR = True                               # Capsule classifiers expect bipolar mode
 
 # ── Signal quality (Capsule docs: <500k good, 500k-1M average, >1M bad) ──
@@ -79,6 +80,18 @@ STRESS_EPISODE_ON = 80.0                     # ≈ 1.6 × your working level
 STRESS_EPISODE_OFF = 65.0
 STRESS_EPISODE_HOLD_S = 30.0
 
+# ── Stress break screen (full screen, breathing guide) ───────────
+STRESS_BREAK_ENABLED = True
+STRESS_METER_HIGH = 75.0                     # break meter fills while stress >= this ...
+STRESS_METER_LOW = 60.0                      # ... drains while stress < this, stays put in between
+STRESS_BREAK_HOLD_S = 120.0                  # high stress for this long fills the meter → break screen
+STRESS_METER_DRAIN_S = 480.0                 # low stress for this long empties a full meter
+# (2026-11-21 recording: fills at 13:37, inside the stress episode from 12:03; 80/65 peaked at 46 %)
+STRESS_BREAK_COOLDOWN_S = 1200.0             # quiet after a prompt (taken or dismissed)
+STRESS_BREAK_SNOOZE_S = 600.0
+STRESS_BREAK_LENGTH_S = 120.0                # guided breathing break
+BREATH_IN_S, BREATH_OUT_S = 4.0, 6.0
+
 # ── Breaks ────────────────────────────────────────────────────────
 FATIGUE_BREAK_SCORE = 70.0                   # ≈ (θ+α)/β 34 % above your working level
 FATIGUE_BREAK_SUSTAIN_S = 180.0
@@ -124,6 +137,13 @@ DEMO_OVERRIDES = dict(
     STRESS_EPISODE_HOLD_S=15.0,
     SELF_REPORT_INTERVAL_S=240.0,            # sleepiness check-in at 4 min
     TREND_WINDOW_S=600.0,                    # timeline shows the last 10 min
+    STRESS_METER_HIGH=70.0,
+    STRESS_METER_LOW=60.0,
+    STRESS_BREAK_HOLD_S=20.0,
+    STRESS_METER_DRAIN_S=60.0,
+    STRESS_BREAK_COOLDOWN_S=120.0,
+    STRESS_BREAK_SNOOZE_S=60.0,
+    STRESS_BREAK_LENGTH_S=60.0,
 )
 _REAL_VALUES = {k: globals()[k] for k in DEMO_OVERRIDES}
 
