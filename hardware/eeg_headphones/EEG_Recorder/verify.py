@@ -4,6 +4,13 @@ Verification script to test all application components.
 
 import sys
 import os
+import tempfile
+
+# The report uses ✓ / ✗. A Windows console, file or pipe may be cp1252, where printing
+# them raises UnicodeEncodeError and aborts the whole check, so force UTF-8 output.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
 
 # Setup paths
 sys.path.insert(0, '.')
@@ -140,8 +147,8 @@ def test_export_manager():
         from core.export_manager import ExportManager
         from pathlib import Path
         
-        # Use temp directory for testing
-        test_dir = Path("/tmp/eeg_test") if os.name != 'nt' else Path("C:\\Temp\\eeg_test")
+        # Use a fresh temp directory for testing (works on any OS, never an existing folder)
+        test_dir = Path(tempfile.mkdtemp(prefix="eeg_recorder_verify_"))
         
         mgr = ExportManager(str(test_dir))
         print("✓ ExportManager instantiated")
@@ -150,13 +157,9 @@ def test_export_manager():
         assert session_dir.exists(), "Session directory should be created"
         print(f"✓ Session directory created: {session_dir.name}")
         
-        # Cleanup
+        # Cleanup: only the temp directory this test created
         import shutil
-        if session_dir.parent.exists():
-            try:
-                shutil.rmtree(session_dir.parent)
-            except:
-                pass
+        shutil.rmtree(test_dir, ignore_errors=True)
         
         print("\n✓ ExportManager: OK\n")
         return True
