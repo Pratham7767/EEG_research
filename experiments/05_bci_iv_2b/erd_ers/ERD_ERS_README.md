@@ -4,7 +4,7 @@ Updated 16 Oct 2026. Companion to `00_PLAN.md` and `REPORT.md` in the parent
 folder.
 
 **To reproduce everything in this folder: open
-`D:\trainsvm\EXPERIMENT_2\RUN_ERD_PSD_2b.m` in MATLAB and press Run.**
+`D:\trainsvm\experiments\05_bci_iv_2b\RUN_ERD_PSD_2b.m` in MATLAB and press Run.**
 One script, no arguments, ~45 s with the cache warm and ~4 min cold. It writes
 the figures, the CSVs and `RUN_ERD_PSD_2b.log` (the full console output) into
 this folder.
@@ -351,7 +351,7 @@ a time axis. They are not competitors.
 
 **The most useful thing this folder provides.** A reference ERD picture from a
 dataset known to contain signal, computed with the identical formula and window
-as `D:\trainsvm\erd\gelo_erd.m`. When the Gelo recordings are redone with
+as `D:\trainsvm\experiments\03_gelo_erd\gelo_erd.m`. When the Gelo recordings are redone with
 interleaved classes and software cues — still the top recommendation of both
 `REPORT.md` §6.1 and the Experiment_svm report — running `gelo_erd.m` and
 putting its output beside `erd_grand_average.png` is a direct, visual,
@@ -381,4 +381,4 @@ with the current recordings months before the classifiers did.
     cache\cache_B0*.mat            epoch cache, ~285 MB. Safe to delete;
                                    deleting only costs a slower next run.
 
-Nothing outside `EXPERIMENT_2\` was written.
+Nothing outside `experiments\05_bci_iv_2b\` was written.

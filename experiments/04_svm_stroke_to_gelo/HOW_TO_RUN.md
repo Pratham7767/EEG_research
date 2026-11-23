@@ -1,7 +1,7 @@
-# HOW TO RUN  -  Experiment_svm
+# HOW TO RUN  -  experiments/04_svm_stroke_to_gelo (was Experiment_svm)
 
 A practical guide to running the three-SVM motor-imagery experiment.
-Everything lives in D:\trainsvm\Experiment_svm
+Everything lives in D:\trainsvm\experiments\04_svm_stroke_to_gelo
 
 ===========================================================================
 ## 1. QUICK START
@@ -10,11 +10,12 @@ Everything lives in D:\trainsvm\Experiment_svm
 Open MATLAB, then paste these four lines one at a time, waiting for each
 to finish before starting the next:
 
-    cd('D:\trainsvm\Experiment_svm')
+    cd('D:\trainsvm\experiments\04_svm_stroke_to_gelo')
     run('s01_extract_features.m')      % ~1 min
     run('s02_train_svm.m')             % ~2-3 min
     run('s03_make_figures.m')          % ~1 min
-    run('s04_round2.m')                % ~4-5 min\n    run('s05_native_rate.m')           % ~5 min, optional variant
+    run('s04_round2.m')                % ~4-5 min
+    run('s05_native_rate.m')           % ~5 min, optional variant
 
 Total: about 10 minutes. That reproduces every number and every figure in
 REPORT.md from the raw data.
@@ -42,12 +43,12 @@ To check your own machine:
 
 Input data that must already be on disk:
 
-    D:\trainsvm\eeg_stroke\sourcedata\sourcedata\sub-01 ... sub-50
+    D:\trainsvm\data\stroke_liu2024\sourcedata\sourcedata\sub-01 ... sub-50
         each containing sub-XX_task-motor-imagery_eeg.mat
-    D:\trainsvm\eeg_stroke\participants.tsv            (needed by s04)
-    D:\trainsvm\eeg_stroke\ERD_ERS\ERD_ERS_summary.csv (needed by s04)
-    D:\trainsvm\left\*.csv                             (5 files)
-    D:\trainsvm\right\*.csv                            (10 files)
+    D:\trainsvm\data\stroke_liu2024\participants.tsv          (needed by s04)
+    D:\trainsvm\data\stroke_liu2024\ERD_ERS\ERD_ERS_summary.csv (needed by s04)
+    D:\trainsvm\data\gelo\left\*.csv                   (5 files)
+    D:\trainsvm\data\gelo\right\*.csv                  (10 files)
 
 ===========================================================================
 ## 3. WHAT EACH SCRIPT DOES
@@ -92,7 +93,7 @@ Input data that must already be on disk:
 
   Before a clean re-run, always delete the partial file first:
 
-      delete('D:\trainsvm\Experiment_svm\results_partial.mat')
+      delete('D:\trainsvm\experiments\04_svm_stroke_to_gelo\results_partial.mat')
       run('s02_train_svm.m')
 
   If your MATLAB session is slow and the script seems to hang, you can run
@@ -145,12 +146,12 @@ Input data that must already be on disk:
 
 After all four scripts, check the headline numbers:
 
-    T = readtable('D:\trainsvm\Experiment_svm\results_summary.csv');
+    T = readtable('D:\trainsvm\experiments\04_svm_stroke_to_gelo\results_summary.csv');
     max(T.LOSO_balanced_accuracy)      % expect 0.5315
     max(T.test_balanced_accuracy)      % expect 0.5336
     height(T)                          % expect 12
 
-    R = readtable('D:\trainsvm\Experiment_svm\results_round2.csv');
+    R = readtable('D:\trainsvm\experiments\04_svm_stroke_to_gelo\results_round2.csv');
     height(R)                          % expect 72
 
 If height(T) is 24 instead of 12, you ran s02 twice without deleting
@@ -186,14 +187,14 @@ Expected final file list:
 Paths are hard-coded at the top of each script. If the project moves,
 edit these lines - there are only eight in total:
 
-    s01_extract_features.m  line 20  CFG.outDir
-    s01_extract_features.m  line 21  CFG.strokeRoot
-    s01_extract_features.m  line 22  CFG.ownRoot
-    s02_train_svm.m         line 26  OUT
-    s03_make_figures.m      line 14  OUT
-    s04_round2.m            line 18  OUT
-    s04_round2.m            line 21  participants.tsv
-    s04_round2.m            line 58  ERD_ERS_summary.csv
+    s01_extract_features.m  line 21  CFG.outDir
+    s01_extract_features.m  line 22  CFG.strokeRoot
+    s01_extract_features.m  line 23  CFG.ownRoot
+    s02_train_svm.m         line 32  OUT
+    s03_make_figures.m      line 15  OUT
+    s04_round2.m            line 19  OUT
+    s04_round2.m            line 22  participants.tsv
+    s04_round2.m            line 63  ERD_ERS_summary.csv
 
 ===========================================================================
 ## 6. TROUBLESHOOTING
@@ -207,7 +208,7 @@ ERROR: Invalid MATLAB file name  /  Invalid text character
 ERROR: Unable to read file sub-01_task-motor-imagery_eeg.mat
     The stroke dataset is not where s01 expects it. Check CFG.strokeRoot.
 
-ERROR: No CSV files found in D:\trainsvm\left
+ERROR: No CSV files found in D:\trainsvm\data\gelo\left
     Your own recordings are missing or in a different folder.
     CFG.ownRoot must be the folder CONTAINING left\ and right\,
     not the left\ folder itself.
@@ -241,14 +242,14 @@ PROBLEM: the script appears to hang
 
 To rebuild everything from the raw data with nothing carried over:
 
-    cd('D:\trainsvm\Experiment_svm')
+    cd('D:\trainsvm\experiments\04_svm_stroke_to_gelo')
     delete('results_partial.mat')
     run('s01_extract_features.m')
     run('s02_train_svm.m')
     run('s03_make_figures.m')
     run('s04_round2.m')
 
-Nothing outside D:\trainsvm\Experiment_svm is written or modified. The raw
+Nothing outside D:\trainsvm\experiments\04_svm_stroke_to_gelo is written or modified. The raw
 data folders are only ever read from.
 
 ===========================================================================

@@ -48,6 +48,18 @@ __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 
+# --- LaTeX build files (reports) ---
+reports/**/*.aux
+reports/**/*.toc
+reports/**/*.lof
+reports/**/*.lot
+reports/**/*.out
+reports/**/*.bbl
+reports/**/*.blg
+reports/**/*.fls
+reports/**/*.fdb_latexmk
+reports/**/*.synctex.gz
+
 # --- MATLAB ---
 *.asv
 *.mex*

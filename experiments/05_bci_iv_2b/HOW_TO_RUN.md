@@ -1,4 +1,4 @@
-# HOW TO RUN — EXPERIMENT_2
+# HOW TO RUN — experiments/05_bci_iv_2b (was EXPERIMENT_2)
 
 ## Interpreter
 
@@ -19,7 +19,7 @@ scipy.io, which is why this folder has no heavy dependency chain.
 
 ## Order
 
-    cd /d D:\trainsvm\EXPERIMENT_2
+    cd /d D:\trainsvm\experiments\05_bci_iv_2b
 
     C:\Python313\python.exe s01_fetch_2b.py        first run ~15 min, then ~90 s
     C:\Python313\python.exe s02_run_models.py      ~100 s on 16 cores

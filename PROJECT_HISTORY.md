@@ -209,3 +209,16 @@ so the volts assumption holds); beeps; the ERD check; the score/verdict before f
 * Git: the repo has no commits, and `.git/objects` holds ~1.1 GB from an earlier add of the raw
   data. A `.gitignore` now excludes data, archives and binaries. To start clean:
   `git gc --prune=now`, then `git add .` and commit.
+
+## Repository housekeeping (2026-11-23)
+
+* All report material moved under `reports/` (see `reports/README.md`): `FINAL REPORT/*`,
+  `major_bci_2/`, `_backup_before_bci2b_edit/` and the root Overleaf zips are now in
+  `reports/major_project/`; the Sept report is in `reports/experiment_report_2026-09/`.
+  Pure moves: 210 tracked files, every byte count checked. Move log:
+  `archive/_restructure_2026-11-23/moves.csv`.
+* The empty leftover `EXPERIMENT_2/` was moved to the archive (nothing deleted).
+* Code folders (`data/ experiments/ apps/ hardware/`) were not moved, so no script path changed.
+  Only `reports/experiment_report_2026-09/make_report_pdf.py` got its new path, and six how-to
+  docs that still named old folders (`EXPERIMENT_2`, `Experiment_svm`, `D:\trainsvm\left`) were
+  corrected.

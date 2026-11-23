@@ -1,0 +1,13 @@
+# Never let git change line endings inside binary files (core.autocrlf=true on this PC).
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.mat   binary
+*.dll   binary
+*.zip   binary
+*.pkl   binary
+*.npz   binary
+*.xlsx  binary
+*.docx  binary

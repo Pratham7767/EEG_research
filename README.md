@@ -50,10 +50,15 @@ EEG_research/
 │       ├── subjectwise/             2b data split per person, left/right (not on GitHub)
 │       └── results/                 tables and figures
 │
-├── apps/mi_bci/           ← real-time left/right BCI app: record, check, train, move a smiley (Graz design)
-├── apps/cognitive_score/   ← desktop app: live focus and tiredness scores from the headphones
+├── apps/                   ← desktop apps for the Neiry/Capsule headphones (each has its own README)
+│   ├── mi_bci/                  real-time left/right BCI: record, check, train, move a smiley (Graz design)
+│   ├── mi_live/                 live left/right commands for a bot (UDP / serial), uses mi_bci read-only
+│   ├── cognitive_score/         live focus and tiredness scores (demo + real mode)
+│   └── burnout_guard/           break and recovery companion, grew out of cognitive_score
 ├── hardware/eeg_headphones/← our recording apps (the device makers' SDKs are not on GitHub)
-├── reports/                ← the first full report (Sept 2026)
+├── reports/                ← all written reports (see reports/README.md)
+│   ├── experiment_report_2026-09/   the first full report (Sept 2026)
+│   └── major_project/               the college Major Project report (LaTeX); latest = Major_phase_4_new_template
 ├── third_party/            ← other people's code we use (not on GitHub)
 └── archive/                ← old files kept just in case (not on GitHub)
 ```
@@ -68,6 +73,9 @@ EEG_research/
 | Test a decoder on a new Gelo recording | `experiments/05_bci_iv_2b/gelo_svm_pipeline.py` |
 | Run the real-time left/right BCI | `apps/mi_bci/run.bat` (no headset: `run_simulator.bat`); guide in `apps/mi_bci/README.md` |
 | Use the focus/tiredness app | `apps/cognitive_score/README.md` |
+| Drive a bot with left/right imagery | `apps/mi_live/README.md` |
+| Use the break / burnout companion | `apps/burnout_guard/README.md` |
+| Edit the Major Project report | `reports/major_project/Major_phase_4_new_template/main_report.tex` |
 
 ---
 

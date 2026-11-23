@@ -42,7 +42,7 @@ opposite to the imagined hand (left MI → C4 drops, right MI → C3 drops).
   timestamp, ch1–ch8, mark), `C:\Users\dellc\Downloads\eeg_ratio_batch.m` (PSD C3/C4 ratio script,
   plots in Downloads\psd_plots).
 
-## 4. Repo layout (restructured 2026-10-20; move log in archive/restructure_moves_2026-10-20.csv)
+## 4. Repo layout (restructured 2026-10-20, reports tidied 2026-11-23; move logs in archive/)
 
 ```
 data/gelo/{left,right}          own Gelo recordings (15 CSVs, 250 Hz, ch2=C3, ch3=C4, marks 1-5 trials, 6/7 baselines)
@@ -58,18 +58,26 @@ experiments/05_bci_iv_2b/       Oct 8-20  BCI Competition IV 2b, the main work
   classifier/    run_bci2b.m (FBCSP winner replication + improvements), results_kappa_*.csv
   erd_svm/       run_erd_svm.m (within-subject), run_erd_svm_loso.m (leave-one-subject-out)
   erd_ers/       ERD/ERS + PSD outputs; results/ figures and CSVs
+apps/mi_bci/                    real-time MI-BCI app (section 6b)
+apps/mi_live/                   live left/right bot commands (UDP/serial), uses mi_bci read-only
 apps/cognitive_score/           focus/fatigue desktop app for Capsule headphones (Python, tests, docs PDFs)
+apps/burnout_guard/             break/recovery companion, grew out of cognitive_score
 hardware/eeg_headphones/        EEG_Recorder, SpeechEEG_Recorder apps (+ vendor SDKs, gitignored)
 third_party/covariancetoolbox/  Barachant Riemannian toolbox (gitignored)
-reports/                        EXPERIMENT_REPORT_2026-09-19.txt/pdf (stages 01-02)
-archive/                        old zips, old README, move log, drive_bundle scripts (gitignored)
+reports/experiment_report_2026-09/  EXPERIMENT_REPORT_2026-09-19.txt/pdf (stages 01-02) + make_report_pdf.py
+reports/major_project/          college report (LaTeX). LATEST = Major_phase_4_new_template/ (23 Nov, 2025-26 template);
+                                Major_phase_4_draft/ (20 Nov), major_bci_2/ (2 Nov), college_template_25_26/,
+                                backups/, zips/ (gitignored). See reports/README.md
+archive/                        old zips, old README, move logs, drive_bundle scripts (gitignored)
 ```
+* Repo root holds only README.md, PROJECT_HISTORY.md, CLAUDE.md, .gitignore, .gitattributes and the
+  folders above. Old root folders `FINAL REPORT/`, `major_bci_2/`, `_backup_before_bci2b_edit/` now live
+  under `reports/major_project/`; the empty `EXPERIMENT_2/` was moved to archive/_restructure_2026-11-23/.
 * All scripts use absolute paths `D:\trainsvm\...` (updated to the new layout). The 2b Python
   scripts use paths relative to their own folder.
 * `.gitignore` excludes data/, 2b data/ and subjectwise/, *.npz, *.pkl, archive/, vendor SDKs,
   third_party, app sessions/logs. The commit holds ~252 files, ~26 MB. Only vendor file committed:
   `apps/cognitive_score/cogscore/capsule_sdk/CapsuleClient.dll`.
-* Leftover duplicate `D:\trainsvm\EXPERIMENT_2\` may still exist (locked at move time). Safe to delete.
 
 ## 5. BCI Competition IV 2b: facts that matter
 

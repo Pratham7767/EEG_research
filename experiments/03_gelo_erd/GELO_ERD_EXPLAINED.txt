@@ -48,8 +48,8 @@ paper's Figure 4.
 
 The script never asks which file is which hand. The FOLDER NAME is the label:
 
-    D:\trainsvm\left\*.csv      every iteration in here = LEFT hand
-    D:\trainsvm\right\*.csv     every iteration in here = RIGHT hand
+    D:\trainsvm\data\gelo\left\*.csv      every iteration in here = LEFT hand
+    D:\trainsvm\data\gelo\right\*.csv     every iteration in here = RIGHT hand
 
 That is the only record of what you were imagining. Nothing inside the file
 says which hand.

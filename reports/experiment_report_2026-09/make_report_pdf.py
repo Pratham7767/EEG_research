@@ -7,7 +7,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import Paragraph, Preformatted, SimpleDocTemplate, Spacer
 
-SRC, OUT = r"D:\trainsvm\reports\EXPERIMENT_REPORT_2026-09-19.txt", r"D:\trainsvm\reports\EXPERIMENT_REPORT_2026-09-19.pdf"
+SRC, OUT = r"D:\trainsvm\reports\experiment_report_2026-09\EXPERIMENT_REPORT_2026-09-19.txt", r"D:\trainsvm\reports\experiment_report_2026-09\EXPERIMENT_REPORT_2026-09-19.pdf"
 
 BODY = ParagraphStyle("body", fontName="Helvetica", fontSize=10, leading=13, spaceAfter=3)
 PRE = ParagraphStyle("pre", fontName="Courier", fontSize=7.8, leading=9.6)

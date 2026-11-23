@@ -81,7 +81,7 @@ crop to −1…+4.** That is what `extract_epochs.py` does.
 
 ## 3. What is actually in your data (verified, not taken from the old README)
 
-Files: `D:\trainsvm\left\*.csv` (5 files), `D:\trainsvm\right\*.csv` (10 files).
+Files: `D:\trainsvm\data\gelo\left\*.csv` (5 files), `D:\trainsvm\data\gelo\right\*.csv` (10 files).
 Columns `timestamp, ch1..ch8, mark`; timestamps step 4000 µs → **250 Hz**, no gaps.
 `ch5..ch8` are constant `1.1754944e-38` (float min) = unused.
 
